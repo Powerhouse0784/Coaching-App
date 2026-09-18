@@ -1,7 +1,8 @@
 {
   "expo": {
-    "name": "coaching-app-mobile",
+    "name": "Intense Learners",
     "slug": "coaching-app-mobile",
+    "scheme": "coachingapp",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -25,6 +26,10 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      "expo-video",
+      "expo-secure-store"
+        ]
   }
 }
