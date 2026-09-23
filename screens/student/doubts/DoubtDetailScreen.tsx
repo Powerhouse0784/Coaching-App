@@ -1,28 +1,33 @@
-import { useState, useCallback } from "react";
+import { useState } from "react";
 import {
-  View, Text, TextInput, TouchableOpacity, FlatList,
-  ActivityIndicator,  Image,
+  View, Text, TextInput, FlatList, ActivityIndicator, Image, Alert,
+  Linking, KeyboardAvoidingView, Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-
+import Animated, { FadeIn, FadeInUp } from "react-native-reanimated";
 import {
-  MessageSquare, Search, ThumbsUp, Clock, CheckCircle2,
-  Users, TrendingUp, ArrowLeft, Plus, ImageIcon, FileText,
+  ArrowLeft, ThumbsUp, Trash2, FileText, ImageIcon, Send,
+  CheckCircle2, Pin, X, Eye,
 } from "lucide-react-native";
-import { useNavigation, useFocusEffect } from "@react-navigation/native";
+import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import api from "@/lib/api";
-import type { Doubt } from "@/types";
+import { pickAndUploadImage, pickAndUploadPDF, type UploadedFile } from "@/lib/upload";
+import type { Doubt, DoubtReply } from "@/types";
 import type { StudentRootStackParamList } from "@/navigation/StudentRootNavigator";
-import AskDoubtModal from "@/components/doubt/AskDoubtModal";
+import Badge from "@/components/ui/Badge";
+import Button from "@/components/ui/Button";
+import AnimatedPressable from "@/components/ui/AnimatedPressable";
+import { colors, fonts, radius, spacing, type } from "@/constants/theme";
 
-type Nav = NativeStackNavigationProp<StudentRootStackParamList, "Doubts">;
+type Nav = NativeStackNavigationProp<StudentRootStackParamList, "DoubtDetail">;
+type Rt = RouteProp<StudentRootStackParamList, "DoubtDetail">;
 
-const PRIORITY_COLORS: Record<string, { bg: string; text: string }> = {
-  low: { bg: "#dcfce7", text: "#15803d" },
-  normal: { bg: "#dbeafe", text: "#1d4ed8" },
-  high: { bg: "#ffedd5", text: "#c2410c" },
-  urgent: { bg: "#fee2e2", text: "#b91c1c" },
+const PRIORITY_TONE: Record<string, "success" | "brand" | "gold" | "danger"> = {
+  low: "success",
+  normal: "brand",
+  high: "gold",
+  urgent: "danger",
 };
 
 function formatTimeAgo(d: string) {
@@ -35,244 +40,367 @@ function formatTimeAgo(d: string) {
   return new Date(d).toLocaleDateString();
 }
 
-export default function DoubtsListScreen() {
-  const navigation = useNavigation<Nav>();
-  const [allDoubts, setAllDoubts] = useState<Doubt[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [filter, setFilter] = useState<"all" | "open" | "solved" | "myDoubts">("all");
-  const [showAskModal, setShowAskModal] = useState(false);
-
-  const fetchDoubts = useCallback(async () => {
-    try {
-      const { data } = await api.get("/api/doubts");
-      if (data.success) setAllDoubts(data.doubts);
-    } catch (e) {
-      console.error("Error fetching doubts:", e);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  // Refetch every time this screen regains focus (e.g. returning from detail
-  // after posting a reply) so counts and statuses stay accurate.
-  useFocusEffect(
-    useCallback(() => {
-      fetchDoubts();
-    }, [fetchDoubts])
-  );
-
-  const filtered = allDoubts.filter((d) => {
-    if (filter === "open" && d.status !== "open") return false;
-    if (filter === "solved" && d.status !== "solved") return false;
-    if (filter === "myDoubts" && !d.isMyDoubt) return false;
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      if (!d.title.toLowerCase().includes(q) && !d.description.toLowerCase().includes(q)) return false;
-    }
-    return true;
+function sortReplies(replies: DoubtReply[]) {
+  return [...replies].sort((a, b) => {
+    if (a.user.role === "TEACHER" && b.user.role !== "TEACHER") return -1;
+    if (a.user.role !== "TEACHER" && b.user.role === "TEACHER") return 1;
+    if (a.isPinned && !b.isPinned) return -1;
+    if (!a.isPinned && b.isPinned) return 1;
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
   });
+}
 
-  const stats = [
-    { icon: MessageSquare, value: allDoubts.length, label: "Total", color: "#3b82f6" },
-    { icon: CheckCircle2, value: allDoubts.filter((d) => d.isSolved).length, label: "Solved", color: "#22c55e" },
-    { icon: Users, value: allDoubts.filter((d) => d.isMyDoubt).length, label: "My Doubts", color: "#f97316" },
-    { icon: TrendingUp, value: allDoubts.filter((d) => !d.isSolved).length, label: "Active", color: "#a855f7" },
-  ];
+export default function DoubtDetailScreen() {
+  const navigation = useNavigation<Nav>();
+  const { doubt: initialDoubt } = useRoute<Rt>().params;
+  const [doubt, setDoubt] = useState<Doubt>(initialDoubt);
 
-  const filters: { value: typeof filter; label: string }[] = [
-    { value: "all", label: "All" },
-    { value: "open", label: "Open" },
-    { value: "solved", label: "Solved" },
-    { value: "myDoubts", label: "My Doubts" },
-  ];
+  const [replyText, setReplyText] = useState("");
+  const [replyImage, setReplyImage] = useState<UploadedFile | null>(null);
+  const [replyPdf, setReplyPdf] = useState<UploadedFile | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadingPdf, setUploadingPdf] = useState(false);
+  const [posting, setPosting] = useState(false);
 
-  const handleUpvote = async (doubtId: string) => {
-    setAllDoubts((prev) =>
-      prev.map((d) =>
-        d.id !== doubtId
-          ? d
-          : { ...d, hasUpvoted: !d.hasUpvoted, stats: { ...d.stats, totalUpvotes: d.hasUpvoted ? d.stats.totalUpvotes - 1 : d.stats.totalUpvotes + 1 } }
-      )
-    );
+  const handleUpvote = async () => {
+    setDoubt((d) => ({
+      ...d,
+      hasUpvoted: !d.hasUpvoted,
+      stats: { ...d.stats, totalUpvotes: d.hasUpvoted ? d.stats.totalUpvotes - 1 : d.stats.totalUpvotes + 1 },
+    }));
     try {
-      await api.patch("/api/doubts", { doubtId, action: "upvote" });
+      await api.patch("/api/doubts", { doubtId: doubt.id, action: "upvote" });
     } catch (e) {
       console.error("Upvote failed:", e);
-      fetchDoubts();
     }
   };
 
-  if (loading) {
-    return (
-      <SafeAreaView className="flex-1 bg-background items-center justify-center">
-        <ActivityIndicator size="large" color="#3b82f6" />
-        <Text className="text-muted-foreground mt-3">Loading doubts…</Text>
-      </SafeAreaView>
-    );
-  }
+  const handleMarkSolved = async () => {
+    setDoubt((d) => ({ ...d, isSolved: true, status: "solved" }));
+    try {
+      await api.patch("/api/doubts", { doubtId: doubt.id, action: "solve" });
+    } catch (e) {
+      console.error(e);
+      Alert.alert("Error", "Failed to mark as solved");
+      setDoubt((d) => ({ ...d, isSolved: false, status: "open" }));
+    }
+  };
+
+  const handleDeleteDoubt = () => {
+    Alert.alert("Delete doubt?", "This can't be undone.", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await api.delete(`/api/doubts?id=${doubt.id}`);
+            navigation.goBack();
+          } catch (e) {
+            console.error(e);
+            Alert.alert("Error", "Failed to delete doubt");
+          }
+        },
+      },
+    ]);
+  };
+
+  const handlePickImage = async () => {
+    setUploadingImage(true);
+    try {
+      const file = await pickAndUploadImage();
+      if (file) setReplyImage(file);
+    } catch (err: any) {
+      Alert.alert("Upload failed", err.message || "Something went wrong");
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  const handlePickPdf = async () => {
+    setUploadingPdf(true);
+    try {
+      const file = await pickAndUploadPDF();
+      if (file) setReplyPdf(file);
+    } catch (err: any) {
+      Alert.alert("Upload failed", err.message || "Something went wrong");
+    } finally {
+      setUploadingPdf(false);
+    }
+  };
+
+  const handlePostReply = async () => {
+    if (!replyText.trim() && !replyImage && !replyPdf) {
+      Alert.alert("Empty reply", "Please write something or attach a file");
+      return;
+    }
+    setPosting(true);
+    try {
+      const { data } = await api.post("/api/doubts/reply", {
+        doubtId: doubt.id,
+        content: replyText,
+        imageUrl: replyImage?.url || null,
+        imageName: replyImage?.name || null,
+        pdfUrl: replyPdf?.url || null,
+        pdfName: replyPdf?.name || null,
+      });
+      if (data.success) {
+        const newReply: DoubtReply = { ...data.reply, isMyReply: true, hasUpvoted: false };
+        setDoubt((d) => ({
+          ...d,
+          replies: [newReply, ...d.replies],
+          stats: { ...d.stats, totalReplies: d.stats.totalReplies + 1 },
+        }));
+        setReplyText("");
+        setReplyImage(null);
+        setReplyPdf(null);
+      } else {
+        Alert.alert("Failed to post", data.error || "Unknown error");
+      }
+    } catch (err: any) {
+      Alert.alert("Error", err.response?.data?.error || "Something went wrong");
+    } finally {
+      setPosting(false);
+    }
+  };
+
+  const handleDeleteReply = (replyId: string) => {
+    Alert.alert("Delete reply?", "This can't be undone.", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: async () => {
+          setDoubt((d) => ({
+            ...d,
+            replies: d.replies.filter((r) => r.id !== replyId),
+            stats: { ...d.stats, totalReplies: d.stats.totalReplies - 1 },
+          }));
+          try {
+            await api.delete(`/api/doubts/reply?id=${replyId}`);
+          } catch (e) {
+            console.error(e);
+          }
+        },
+      },
+    ]);
+  };
+
+  const canSend = !posting && (!!replyText.trim() || !!replyImage || !!replyPdf);
 
   return (
-    <SafeAreaView className="flex-1 bg-background">
-      <FlatList
-        data={filtered}
-        keyExtractor={(item) => item.id}
-        ListHeaderComponent={
-          <View className="px-5 pt-2">
-            <View className="flex-row items-center justify-between mb-4">
-              <View className="flex-row items-center gap-3">
-                <TouchableOpacity onPress={() => navigation.goBack()} className="w-9 h-9 bg-secondary rounded-lg items-center justify-center">
-                  <ArrowLeft size={18} color="#374151" />
-                </TouchableOpacity>
-                <View>
-                  <Text className="text-lg font-bold text-foreground">Discussion Forum</Text>
-                  <Text className="text-xs text-muted-foreground">Ask, answer, and help each other</Text>
-                </View>
-              </View>
-              <TouchableOpacity
-                onPress={() => setShowAskModal(true)}
-                className="bg-blue-600 rounded-xl px-3.5 py-2.5 flex-row items-center gap-1.5"
-              >
-                <Plus size={16} color="#fff" />
-                <Text className="text-white text-xs font-semibold">Ask</Text>
-              </TouchableOpacity>
-            </View>
-
-            <View className="flex-row flex-wrap gap-3 mb-4">
-              {stats.map((s, idx) => (
-                <View key={idx} className="bg-card rounded-2xl p-3 border border-border" style={{ minWidth: "45%" }}>
-                  <View className="w-9 h-9 rounded-xl items-center justify-center mb-2" style={{ backgroundColor: `${s.color}20` }}>
-                    <s.icon size={16} color={s.color} />
-                  </View>
-                  <Text className="text-lg font-bold text-foreground">{s.value}</Text>
-                  <Text className="text-xs text-muted-foreground">{s.label}</Text>
-                </View>
-              ))}
-            </View>
-
-            <View className="flex-row items-center border-2 border-border rounded-xl px-3 mb-3 bg-card">
-              <Search size={16} color="#9ca3af" />
-              <TextInput
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                placeholder="Search doubts…"
-                className="flex-1 py-2.5 px-2 text-foreground text-sm"
-              />
-            </View>
-
-            <FlatList
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              data={filters}
-              keyExtractor={(f) => f.value}
-              contentContainerStyle={{ gap: 8, marginBottom: 14 }}
-              renderItem={({ item: f }) => (
-                <TouchableOpacity
-                  onPress={() => setFilter(f.value)}
-                  className={`px-3.5 py-2 rounded-full ${filter === f.value ? "bg-blue-600" : "bg-card border border-border"}`}
-                >
-                  <Text className={`text-xs font-semibold ${filter === f.value ? "text-white" : "text-foreground"}`}>{f.label}</Text>
-                </TouchableOpacity>
-              )}
-            />
-          </View>
-        }
-        renderItem={({ item: doubt }) => (
-          <TouchableOpacity
-            onPress={() => navigation.navigate("DoubtDetail", { doubt })}
-            activeOpacity={0.85}
-            className="mx-5 mb-3 bg-card rounded-2xl border border-border p-4"
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.paper }} edges={["top"]}>
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
+        {/* Header */}
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 20, paddingTop: 8, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+          <AnimatedPressable
+            pressScale={0.9}
+            onPress={() => navigation.goBack()}
+            style={{ width: 36, height: 36, borderRadius: radius.sm, backgroundColor: colors.surfaceMuted, alignItems: "center", justifyContent: "center" }}
           >
-            <View className="flex-row gap-3">
-              <View className="w-10 h-10 rounded-full bg-blue-500 items-center justify-center overflow-hidden">
-                {doubt.student.avatar ? (
-                  <Image source={{ uri: doubt.student.avatar }} className="w-full h-full" />
-                ) : (
-                  <Text className="text-white font-bold text-sm">{doubt.student.name.charAt(0).toUpperCase()}</Text>
-                )}
-              </View>
-              <View className="flex-1">
-                <View className="flex-row items-start justify-between gap-2 mb-1">
-                  <Text className="font-bold text-foreground text-sm flex-1" numberOfLines={1}>{doubt.title}</Text>
-                  {doubt.isSolved && (
-                    <View className="flex-row items-center gap-1 bg-green-100 px-2 py-0.5 rounded-full">
-                      <CheckCircle2 size={11} color="#15803d" />
-                      <Text className="text-[10px] font-semibold text-green-700">Solved</Text>
-                    </View>
-                  )}
-                </View>
-                <View className="flex-row items-center flex-wrap gap-1.5 mb-2">
-                  <Text className="text-xs text-muted-foreground">{doubt.student.name}</Text>
-                  <Text className="text-xs text-muted-foreground">•</Text>
-                  <View className="flex-row items-center gap-1">
-                    <Clock size={10} color="#9ca3af" />
-                    <Text className="text-xs text-muted-foreground">{formatTimeAgo(doubt.createdAt)}</Text>
-                  </View>
-                  <View className="bg-blue-100 px-2 py-0.5 rounded-full">
-                    <Text className="text-[10px] font-medium text-blue-700">{doubt.subject}</Text>
-                  </View>
-                  {PRIORITY_COLORS[doubt.priority] && (
-                    <View className="px-2 py-0.5 rounded-full" style={{ backgroundColor: PRIORITY_COLORS[doubt.priority].bg }}>
-                      <Text className="text-[10px] font-semibold" style={{ color: PRIORITY_COLORS[doubt.priority].text }}>
-                        {doubt.priority}
-                      </Text>
-                    </View>
-                  )}
-                </View>
+            <ArrowLeft size={18} color={colors.ink} />
+          </AnimatedPressable>
+          <Text style={{ ...type.h3, fontSize: 16, color: colors.ink, flex: 1 }}>Doubt Details</Text>
+          {doubt.isMyDoubt && (
+            <AnimatedPressable pressScale={0.9} onPress={handleDeleteDoubt} style={{ padding: 6 }}>
+              <Trash2 size={18} color={colors.coral} />
+            </AnimatedPressable>
+          )}
+        </View>
 
-                <Text className="text-xs text-muted-foreground mb-2" numberOfLines={2}>{doubt.description}</Text>
-
-                {(doubt.imageUrl || doubt.pdfUrl) && (
-                  <View className="flex-row gap-1.5 mb-2">
-                    {doubt.imageUrl && (
-                      <View className="flex-row items-center gap-1 bg-blue-50 px-2 py-1 rounded-lg">
-                        <ImageIcon size={11} color="#1d4ed8" />
-                        <Text className="text-[10px] text-blue-700">Image</Text>
-                      </View>
-                    )}
-                    {doubt.pdfUrl && (
-                      <View className="flex-row items-center gap-1 bg-red-50 px-2 py-1 rounded-lg">
-                        <FileText size={11} color="#b91c1c" />
-                        <Text className="text-[10px] text-red-700">PDF</Text>
-                      </View>
-                    )}
-                  </View>
-                )}
-
-                <View className="flex-row items-center gap-4">
-                  <TouchableOpacity onPress={() => handleUpvote(doubt.id)} className="flex-row items-center gap-1.5">
-                    <ThumbsUp size={13} color={doubt.hasUpvoted ? "#3b82f6" : "#6b7280"} fill={doubt.hasUpvoted ? "#3b82f6" : "none"} />
-                    <Text className={`text-xs font-semibold ${doubt.hasUpvoted ? "text-blue-600" : "text-muted-foreground"}`}>
-                      {doubt.stats.totalUpvotes}
+        <FlatList
+          data={sortReplies(doubt.replies)}
+          keyExtractor={(r) => r.id}
+          contentContainerStyle={{ padding: 20, flexGrow: 1 }}
+          showsVerticalScrollIndicator={false}
+          ListHeaderComponent={
+            <Animated.View entering={FadeIn.duration(300)} style={{ marginBottom: spacing.lg, paddingBottom: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: spacing.md }}>
+                <View style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: colors.indigo, alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+                  {doubt.student.avatar ? (
+                    <Image source={{ uri: doubt.student.avatar }} style={{ width: "100%", height: "100%" }} />
+                  ) : (
+                    <Text style={{ color: colors.white, fontFamily: fonts.bodySemibold, fontSize: 14 }}>
+                      {doubt.student.name.charAt(0).toUpperCase()}
                     </Text>
-                  </TouchableOpacity>
-                  <View className="flex-row items-center gap-1.5">
-                    <MessageSquare size={13} color="#6b7280" />
-                    <Text className="text-xs text-muted-foreground">{doubt.stats.totalReplies}</Text>
-                  </View>
+                  )}
+                </View>
+                <View>
+                  <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 14, color: colors.ink }}>{doubt.student.name}</Text>
+                  <Text style={{ ...type.caption, color: colors.inkMuted }}>{doubt.subject} • {formatTimeAgo(doubt.createdAt)}</Text>
                 </View>
               </View>
-            </View>
-          </TouchableOpacity>
-        )}
-        contentContainerStyle={{ paddingBottom: 24 }}
-        ListEmptyComponent={
-          <View className="items-center py-16 px-5">
-            <MessageSquare size={48} color="#9ca3af" />
-            <Text className="text-foreground font-bold text-base mt-3">No doubts found</Text>
-            <Text className="text-muted-foreground text-sm text-center mt-1">Be the first to ask a question!</Text>
-          </View>
-        }
-      />
 
-      <AskDoubtModal
-        visible={showAskModal}
-        onClose={() => setShowAskModal(false)}
-        onSuccess={() => {
-          setShowAskModal(false);
-          fetchDoubts();
-        }}
-      />
+              <Text style={{ ...type.h3, fontSize: 18, color: colors.ink, marginBottom: 6 }}>{doubt.title}</Text>
+              <Text style={{ ...type.body, fontSize: 14, color: colors.inkMuted, lineHeight: 21, marginBottom: spacing.md }}>
+                {doubt.description}
+              </Text>
+
+              {doubt.imageUrl && (
+                <Image source={{ uri: doubt.imageUrl }} style={{ width: "100%", height: 180, borderRadius: radius.md, marginBottom: spacing.sm }} resizeMode="cover" />
+              )}
+              {doubt.pdfUrl && (
+                <AnimatedPressable
+                  onPress={() => Linking.openURL(doubt.pdfUrl!)}
+                  style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: colors.coralTint, borderRadius: radius.sm, paddingHorizontal: 12, paddingVertical: 9, alignSelf: "flex-start", marginBottom: spacing.md }}
+                >
+                  <FileText size={14} color={colors.coral} />
+                  <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 12.5, color: colors.coral }}>{doubt.pdfName || "Download PDF"}</Text>
+                </AnimatedPressable>
+              )}
+
+              <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8, marginBottom: spacing.md }}>
+                {!doubt.isSolved && doubt.isMyDoubt && (
+                  <Button label="Mark as Solved" icon={CheckCircle2} size="sm" onPress={handleMarkSolved} style={{ backgroundColor: colors.mint }} />
+                )}
+                {PRIORITY_TONE[doubt.priority] && <Badge label={doubt.priority} tone={PRIORITY_TONE[doubt.priority]} />}
+                {doubt.isSolved && <Badge label="Solved" tone="success" />}
+                <AnimatedPressable pressScale={0.9} onPress={handleUpvote} style={{ flexDirection: "row", alignItems: "center", gap: 5, marginLeft: "auto" }}>
+                  <ThumbsUp size={15} color={doubt.hasUpvoted ? colors.indigo : colors.inkMuted} fill={doubt.hasUpvoted ? colors.indigo : "none"} />
+                  <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 13, color: doubt.hasUpvoted ? colors.indigo : colors.inkMuted }}>
+                    {doubt.stats.totalUpvotes}
+                  </Text>
+                </AnimatedPressable>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+                  <Eye size={14} color={colors.inkFaint} />
+                  <Text style={{ ...type.caption, color: colors.inkMuted }}>{doubt.views}</Text>
+                </View>
+              </View>
+
+              <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 13.5, color: colors.ink, marginTop: 4 }}>
+                Replies ({doubt.replies.length})
+              </Text>
+            </Animated.View>
+          }
+          ListEmptyComponent={
+            <View style={{ alignItems: "center", paddingVertical: 32 }}>
+              <Text style={{ ...type.body, fontSize: 13, color: colors.inkMuted }}>No replies yet. Be the first to help!</Text>
+            </View>
+          }
+          renderItem={({ item: reply, index }) => {
+            const isTeacher = reply.user.role === "TEACHER";
+            const bg = isTeacher ? colors.goldTint : reply.isPinned ? colors.goldTint : reply.isAccepted ? colors.mintTint : colors.surface;
+            const border = isTeacher ? "rgba(201,154,46,0.35)" : reply.isPinned ? "rgba(201,154,46,0.35)" : reply.isAccepted ? "rgba(47,143,91,0.3)" : colors.border;
+            return (
+              <Animated.View entering={FadeInUp.duration(280).delay(Math.min(index, 6) * 45)}>
+                <View style={{ borderRadius: radius.md, borderWidth: 1.5, padding: spacing.md, marginBottom: spacing.md, backgroundColor: bg, borderColor: border }}>
+                  <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 9, marginBottom: spacing.sm }}>
+                    <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: isTeacher ? colors.gold : colors.indigo, alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+                      {reply.user.avatar ? (
+                        <Image source={{ uri: reply.user.avatar }} style={{ width: "100%", height: "100%" }} />
+                      ) : (
+                        <Text style={{ color: colors.white, fontFamily: fonts.bodySemibold, fontSize: 12 }}>
+                          {reply.user.name.charAt(0).toUpperCase()}
+                        </Text>
+                      )}
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 6 }}>
+                        <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 13.5, color: colors.ink }}>{reply.user.name}</Text>
+                        {isTeacher && <Badge label="Teacher" tone="gold" />}
+                        {reply.isPinned && <Pin size={11} color={colors.gold} fill={colors.gold} />}
+                        {reply.isAccepted && <CheckCircle2 size={11} color={colors.mint} fill={colors.mint} />}
+                      </View>
+                      <Text style={{ fontSize: 10, fontFamily: fonts.body, color: colors.inkFaint, marginTop: 1 }}>{formatTimeAgo(reply.createdAt)}</Text>
+                    </View>
+                  </View>
+
+                  <Text style={{ ...type.body, fontSize: 13.5, color: colors.ink, lineHeight: 19, marginBottom: spacing.sm }}>{reply.content}</Text>
+
+                  {reply.imageUrl && (
+                    <Image source={{ uri: reply.imageUrl }} style={{ width: "100%", height: 140, borderRadius: radius.sm, marginBottom: spacing.sm }} resizeMode="cover" />
+                  )}
+                  {reply.pdfUrl && (
+                    <AnimatedPressable
+                      onPress={() => Linking.openURL(reply.pdfUrl!)}
+                      style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: colors.coralTint, borderRadius: radius.sm, paddingHorizontal: 10, paddingVertical: 7, alignSelf: "flex-start", marginBottom: spacing.sm }}
+                    >
+                      <FileText size={12} color={colors.coral} />
+                      <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 11.5, color: colors.coral }}>{reply.pdfName || "Download PDF"}</Text>
+                    </AnimatedPressable>
+                  )}
+
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 16 }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+                      <ThumbsUp size={13} color={colors.inkMuted} />
+                      <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 11.5, color: colors.inkMuted }}>{reply.upvotes}</Text>
+                    </View>
+                    {reply.isMyReply && (
+                      <AnimatedPressable pressScale={0.9} onPress={() => handleDeleteReply(reply.id)} style={{ marginLeft: "auto" }}>
+                        <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 11.5, color: colors.coral }}>Delete</Text>
+                      </AnimatedPressable>
+                    )}
+                  </View>
+                </View>
+              </Animated.View>
+            );
+          }}
+        />
+
+        {/* Reply composer */}
+        <View style={{ padding: spacing.md, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.paper }}>
+          {(replyImage || replyPdf) && (
+            <View style={{ flexDirection: "row", gap: 8, marginBottom: spacing.sm }}>
+              {replyImage && (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: colors.indigoTint, borderRadius: radius.sm, paddingHorizontal: 8, paddingVertical: 7 }}>
+                  <ImageIcon size={12} color={colors.indigo} />
+                  <Text style={{ fontFamily: fonts.body, fontSize: 11.5, color: colors.indigo, maxWidth: 100 }} numberOfLines={1}>{replyImage.name}</Text>
+                  <AnimatedPressable pressScale={0.9} onPress={() => setReplyImage(null)}><X size={12} color={colors.coral} /></AnimatedPressable>
+                </View>
+              )}
+              {replyPdf && (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: colors.coralTint, borderRadius: radius.sm, paddingHorizontal: 8, paddingVertical: 7 }}>
+                  <FileText size={12} color={colors.coral} />
+                  <Text style={{ fontFamily: fonts.body, fontSize: 11.5, color: colors.coral, maxWidth: 100 }} numberOfLines={1}>{replyPdf.name}</Text>
+                  <AnimatedPressable pressScale={0.9} onPress={() => setReplyPdf(null)}><X size={12} color={colors.coral} /></AnimatedPressable>
+                </View>
+              )}
+            </View>
+          )}
+          <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 12, color: colors.inkMuted, marginBottom: spacing.sm }}>Your Response</Text>
+          <View style={{ flexDirection: "row", gap: 8, alignItems: "flex-end" }}>
+            <TextInput
+              value={replyText}
+              onChangeText={setReplyText}
+              placeholder="Type your answer here…"
+              placeholderTextColor={colors.inkFaint}
+              multiline
+              style={{
+                flex: 1, borderWidth: 1.5, borderColor: colors.border, borderRadius: radius.md,
+                paddingHorizontal: spacing.md, paddingVertical: 10, color: colors.ink,
+                fontFamily: fonts.body, fontSize: 14, maxHeight: 80, backgroundColor: colors.surface,
+              }}
+            />
+            <AnimatedPressable
+              pressScale={0.9}
+              onPress={handlePickImage}
+              disabled={uploadingImage}
+              style={{ width: 40, height: 40, borderWidth: 1.5, borderColor: colors.border, borderRadius: radius.md, alignItems: "center", justifyContent: "center" }}
+            >
+              {uploadingImage ? <ActivityIndicator size="small" color={colors.indigo} /> : <ImageIcon size={16} color={colors.inkMuted} />}
+            </AnimatedPressable>
+            <AnimatedPressable
+              pressScale={0.9}
+              onPress={handlePickPdf}
+              disabled={uploadingPdf}
+              style={{ width: 40, height: 40, borderWidth: 1.5, borderColor: colors.border, borderRadius: radius.md, alignItems: "center", justifyContent: "center" }}
+            >
+              {uploadingPdf ? <ActivityIndicator size="small" color={colors.coral} /> : <FileText size={16} color={colors.inkMuted} />}
+            </AnimatedPressable>
+            <AnimatedPressable
+              pressScale={0.9}
+              onPress={handlePostReply}
+              disabled={!canSend}
+              style={{
+                width: 40, height: 40, borderRadius: radius.md, alignItems: "center", justifyContent: "center",
+                backgroundColor: colors.indigo, opacity: canSend ? 1 : 0.5,
+              }}
+            >
+              {posting ? <ActivityIndicator size="small" color={colors.white} /> : <Send size={16} color={colors.white} />}
+            </AnimatedPressable>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

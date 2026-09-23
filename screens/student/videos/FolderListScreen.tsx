@@ -1,17 +1,25 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
-import {
-  View, Text, TextInput, TouchableOpacity, FlatList,
-  ActivityIndicator,  RefreshControl, Image,
-} from "react-native";
+import { View, Text, FlatList, TouchableOpacity, ActivityIndicator, RefreshControl, Image, Dimensions, ImageBackground } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Play, Search, Clock, CheckCircle, Bookmark, X, Users } from "lucide-react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import { BlurView } from "expo-blur";
+import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
+import { Play, Search, Clock, CheckCircle, Bookmark, X, Users, Video as VideoIcon } from "lucide-react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import api from "@/lib/api";
 import type { VideoFolder, WatchStats } from "@/types";
 import type { VideosStackParamList } from "@/navigation/VideosStackNavigator";
+import Input from "@/components/ui/Input";
+import Badge from "@/components/ui/Badge";
+import AnimatedPressable from "@/components/ui/AnimatedPressable";
+import { MiniStat } from "@/components/ui/StatPrimitives";
+import { colors, fonts, radius, spacing, type } from "@/constants/theme";
 
 type Nav = NativeStackNavigationProp<VideosStackParamList, "FolderList">;
+
+// Placeholder editorial photography — swap for your own studio/recording setup photo before launch.
+const HERO_PHOTO = "https://images.unsplash.com/photo-1587691592099-24045742c181?w=1200&q=80&auto=format&fit=crop";
 
 export default function FolderListScreen() {
   const navigation = useNavigation<Nav>();
@@ -63,145 +71,202 @@ export default function FolderListScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView className="flex-1 bg-background items-center justify-center">
-        <ActivityIndicator size="large" color="#f43f5e" />
-        <Text className="text-muted-foreground mt-3">Loading video library…</Text>
+      <SafeAreaView style={{ flex: 1, backgroundColor: colors.paper, alignItems: "center", justifyContent: "center" }}>
+        <ActivityIndicator size="large" color={colors.indigo} />
+        <Text style={{ ...type.body, color: colors.inkMuted, marginTop: spacing.md }}>Loading video library…</Text>
       </SafeAreaView>
     );
   }
 
   const statCards = stats
     ? [
-        { icon: Clock, value: `${stats.watchTime.hours}h ${stats.watchTime.minutes}m`, label: "Watch Time", color: "#3b82f6" },
-        { icon: CheckCircle, value: stats.completedVideos, label: "Completed", color: "#22c55e" },
-        { icon: Play, value: stats.startedVideos, label: "Started", color: "#f43f5e" },
-        { icon: Bookmark, value: stats.bookmarkedVideos, label: "Bookmarked", color: "#f59e0b" },
+        { icon: Clock, value: `${stats.watchTime.hours}h ${stats.watchTime.minutes}m`, label: "Watch Time", accent: "#8FA6E0" },
+        { icon: CheckCircle, value: stats.completedVideos, label: "Completed", accent: colors.mint },
+        { icon: Play, value: stats.startedVideos, label: "Started", accent: colors.coral },
+        { icon: Bookmark, value: stats.bookmarkedVideos, label: "Bookmarked", accent: colors.gold },
       ]
     : [];
 
   return (
-    <SafeAreaView className="flex-1 bg-background">
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.paper }} edges={["top"]}>
       <FlatList
         data={filteredFolders}
         keyExtractor={(item) => item.id}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => fetchData(true)} />}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={() => fetchData(true)} tintColor={colors.indigo} colors={[colors.indigo]} />
+        }
+        showsVerticalScrollIndicator={false}
         ListHeaderComponent={
-          <View className="px-5 pt-4">
-            <View className="flex-row items-center gap-3 mb-4">
-              <View className="w-11 h-11 bg-rose-600 rounded-xl items-center justify-center">
-                <Play size={22} color="#fff" />
-              </View>
-              <View>
-                <Text className="text-xl font-bold text-foreground">Video Library</Text>
-                <Text className="text-xs text-muted-foreground">Recorded lectures from your teachers</Text>
-              </View>
+          <View>
+            {/* Cinematic photo hero — same language as the dashboards */}
+            <View style={{ overflow: "hidden", borderBottomLeftRadius: 32, borderBottomRightRadius: 32 }}>
+              <ImageBackground source={{ uri: HERO_PHOTO }} resizeMode="cover">
+                <LinearGradient
+                  colors={["rgba(27,44,92,0.6)", "rgba(27,44,92,0.8)", "rgba(16,24,49,0.95)"]}
+                  style={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: 28 }}
+                >
+                  <Animated.View entering={FadeIn.duration(400)} style={{ flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 20 }}>
+                    <View style={{ width: 46, height: 46, borderRadius: radius.md, backgroundColor: "rgba(255,255,255,0.14)", alignItems: "center", justifyContent: "center" }}>
+                      <Play size={22} color={colors.white} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ ...type.h2, color: colors.white, textShadowColor: "rgba(0,0,0,0.3)", textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 6 }}>Video Library</Text>
+                      <Text style={{ color: "rgba(255,255,255,0.75)", fontFamily: fonts.body, fontSize: 12.5, marginTop: 1 }}>
+                        Recorded lectures from your teachers
+                      </Text>
+                    </View>
+                  </Animated.View>
+
+                  {stats && (
+                    <Animated.View entering={FadeInDown.duration(450).delay(80)}>
+                      <BlurView intensity={45} tint="dark" style={{ borderRadius: radius.lg, overflow: "hidden", borderWidth: 1, borderColor: "rgba(255,255,255,0.18)" }}>
+                        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, padding: spacing.lg }}>
+                          {statCards.map((s, idx) => (
+                            <View
+                              key={idx}
+                              style={{
+                                minWidth: "45%", flex: 1, borderRadius: radius.md, padding: spacing.md,
+                                backgroundColor: "rgba(255,255,255,0.06)",
+                                borderLeftWidth: 3, borderLeftColor: s.accent,
+                              }}
+                            >
+                              <View style={{ width: 28, height: 28, borderRadius: radius.sm, backgroundColor: `${s.accent}30`, alignItems: "center", justifyContent: "center", marginBottom: spacing.sm }}>
+                                <s.icon size={14} color={s.accent} />
+                              </View>
+                              <Text style={{ color: colors.white, fontFamily: fonts.displayBold, fontSize: 17 }}>{s.value}</Text>
+                              <Text style={{ color: "rgba(255,255,255,0.6)", fontFamily: fonts.body, fontSize: 10.5 }}>{s.label}</Text>
+                            </View>
+                          ))}
+                        </View>
+                      </BlurView>
+                    </Animated.View>
+                  )}
+                </LinearGradient>
+              </ImageBackground>
             </View>
 
-            {stats && (
-              <View className="flex-row flex-wrap gap-3 mb-5">
-                {statCards.map((s, idx) => (
-                  <View key={idx} className="bg-card rounded-2xl p-3 border border-border" style={{ minWidth: "45%" }}>
-                    <View className="w-9 h-9 rounded-xl items-center justify-center mb-2" style={{ backgroundColor: `${s.color}20` }}>
-                      <s.icon size={16} color={s.color} />
-                    </View>
-                    <Text className="text-lg font-bold text-foreground">{s.value}</Text>
-                    <Text className="text-xs text-muted-foreground">{s.label}</Text>
-                  </View>
-                ))}
-              </View>
-            )}
-
-            <View className="flex-row items-center border-2 border-border rounded-xl px-3 mb-4 bg-card">
-              <Search size={18} color="#9ca3af" />
-              <TextInput
+            {/* Search + filters */}
+            <View style={{ paddingHorizontal: 20, paddingTop: 20 }}>
+              <Input
                 value={searchQuery}
                 onChangeText={setSearchQuery}
                 placeholder="Search folders, subjects, chapters…"
-                className="flex-1 py-3 px-2 text-foreground"
+                leftIcon={<Search size={18} color={colors.inkFaint} />}
+                rightIcon={
+                  searchQuery ? (
+                    <AnimatedPressable pressScale={0.85} onPress={() => setSearchQuery("")} hitSlop={8}>
+                      <X size={16} color={colors.inkFaint} />
+                    </AnimatedPressable>
+                  ) : undefined
+                }
               />
-              {searchQuery ? (
-                <TouchableOpacity onPress={() => setSearchQuery("")}>
-                  <X size={16} color="#9ca3af" />
-                </TouchableOpacity>
-              ) : null}
-            </View>
 
-            {subjects.length > 0 && (
-              <FlatList
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                data={["all", ...subjects]}
-                keyExtractor={(s) => s}
-                contentContainerStyle={{ gap: 8, marginBottom: 12 }}
-                renderItem={({ item: s }) => (
-                  <TouchableOpacity
-                    onPress={() => setSelectedSubject(s)}
-                    className={`px-3.5 py-2 rounded-full ${
-                      selectedSubject === s ? "bg-rose-600" : "bg-card border border-border"
-                    }`}
-                  >
-                    <Text className={`text-xs font-semibold ${selectedSubject === s ? "text-white" : "text-foreground"}`}>
-                      {s === "all" ? "All Subjects" : s}
-                    </Text>
-                  </TouchableOpacity>
-                )}
-              />
-            )}
-          </View>
-        }
-        renderItem={({ item: folder }) => (
-          <TouchableOpacity
-            onPress={() => navigation.navigate("FolderDetail", { folder })}
-            activeOpacity={0.85}
-            className="mx-5 mb-4 bg-card rounded-2xl border border-border overflow-hidden"
-          >
-            <View className="h-36 bg-rose-50">
-              {folder.thumbnail ? (
-                <Image source={{ uri: folder.thumbnail }} className="w-full h-full" resizeMode="cover" />
-              ) : (
-                <View className="w-full h-full items-center justify-center">
-                  <Play size={36} color="#fda4af" />
-                </View>
+              {subjects.length > 0 && (
+                <FlatList
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  data={["all", ...subjects]}
+                  keyExtractor={(s) => s}
+                  contentContainerStyle={{ gap: 8, marginTop: spacing.md }}
+                  renderItem={({ item: s }) => {
+                    const active = selectedSubject === s;
+                    return (
+                      <AnimatedPressable
+                        pressScale={0.95}
+                        onPress={() => setSelectedSubject(s)}
+                        style={{
+                          paddingHorizontal: 14, paddingVertical: 9, borderRadius: radius.pill,
+                          backgroundColor: active ? colors.indigo : colors.surface,
+                          borderWidth: active ? 0 : 1, borderColor: colors.border,
+                        }}
+                      >
+                        <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 12.5, color: active ? colors.white : colors.ink }}>
+                          {s === "all" ? "All Subjects" : s}
+                        </Text>
+                      </AnimatedPressable>
+                    );
+                  }}
+                />
               )}
-              <View className="absolute bottom-2 right-2 bg-black/70 px-2 py-1 rounded-md">
-                <Text className="text-white text-[10px] font-semibold">{folder.videoCount} videos · {folder.totalDuration}</Text>
-              </View>
-            </View>
 
-            <View className="p-4">
-              <View className="flex-row gap-1.5 mb-2">
-                <View className="px-2 py-1 rounded-full bg-rose-100">
-                  <Text className="text-[10px] font-bold text-rose-700">{folder.subject}</Text>
-                </View>
-                <View className="px-2 py-1 rounded-full bg-blue-100">
-                  <Text className="text-[10px] font-bold text-blue-700">{folder.class}</Text>
-                </View>
-              </View>
-
-              <Text className="font-bold text-foreground text-sm mb-1" numberOfLines={2}>{folder.name}</Text>
-              {folder.chapter ? <Text className="text-xs text-muted-foreground mb-2">Ch. {folder.chapter}</Text> : null}
-
-              <View className="flex-row items-center gap-1.5 mb-3">
-                <Users size={12} color="#9ca3af" />
-                <Text className="text-xs text-muted-foreground" numberOfLines={1}>{folder.teacher}</Text>
-              </View>
-
-              {/* Progress bar */}
-              <View className="h-1.5 bg-secondary rounded-full overflow-hidden mb-1.5">
-                <View className="h-full bg-rose-500 rounded-full" style={{ width: `${folder.progress}%` }} />
-              </View>
-              <Text className="text-[10px] text-muted-foreground">
-                {folder.completedCount}/{folder.videoCount} completed · {folder.progress}%
+              <Text style={{ fontFamily: fonts.body, fontSize: 12, color: colors.inkFaint, marginTop: spacing.md, marginBottom: 4 }}>
+                {filteredFolders.length} {filteredFolders.length === 1 ? "folder" : "folders"}
               </Text>
             </View>
-          </TouchableOpacity>
+          </View>
+        }
+        renderItem={({ item: folder, index }) => (
+          <Animated.View entering={FadeInDown.duration(350).delay(Math.min(index, 6) * 60)}>
+            <AnimatedPressable
+              onPress={() => navigation.navigate("FolderDetail", { folder })}
+              pressScale={0.98}
+              style={{
+                marginHorizontal: 20, marginBottom: 16, backgroundColor: colors.surface,
+                borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, overflow: "hidden",
+              }}
+            >
+              <View style={{ height: 150, backgroundColor: colors.indigoTint }}>
+                {folder.thumbnail ? (
+                  <Image source={{ uri: folder.thumbnail }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
+                ) : (
+                  <View style={{ width: "100%", height: "100%", alignItems: "center", justifyContent: "center" }}>
+                    <VideoIcon size={34} color={colors.indigo} />
+                  </View>
+                )}
+                <LinearGradient
+                  colors={["transparent", "rgba(23,25,35,0.55)"]}
+                  style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: 60 }}
+                  pointerEvents="none"
+                />
+                <View style={{ position: "absolute", bottom: 10, right: 10, backgroundColor: "rgba(23,25,35,0.75)", paddingHorizontal: 8, paddingVertical: 4, borderRadius: radius.sm }}>
+                  <Text style={{ color: colors.white, fontFamily: fonts.bodySemibold, fontSize: 10.5 }}>
+                    {folder.videoCount} videos · {folder.totalDuration}
+                  </Text>
+                </View>
+                <View style={{ position: "absolute", top: 10, left: 10, width: 34, height: 34, borderRadius: 17, backgroundColor: "rgba(255,255,255,0.9)", alignItems: "center", justifyContent: "center" }}>
+                  <Play size={15} color={colors.indigo} fill={colors.indigo} />
+                </View>
+              </View>
+
+              <View style={{ padding: spacing.lg }}>
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: spacing.sm }}>
+                  <Badge label={folder.subject} tone="brand" />
+                  <Badge label={folder.class} tone="neutral" />
+                </View>
+
+                <Text style={{ ...type.h3, fontSize: 15.5, color: colors.ink, marginBottom: 2 }} numberOfLines={2}>
+                  {folder.name}
+                </Text>
+                {folder.chapter ? (
+                  <Text style={{ ...type.caption, color: colors.inkMuted, marginBottom: spacing.sm }}>Ch. {folder.chapter}</Text>
+                ) : null}
+
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: spacing.md }}>
+                  <Users size={12} color={colors.inkFaint} />
+                  <Text style={{ ...type.caption, color: colors.inkMuted }} numberOfLines={1}>{folder.teacher}</Text>
+                </View>
+
+                {/* Progress bar */}
+                <View style={{ height: 6, borderRadius: radius.pill, backgroundColor: colors.surfaceMuted, overflow: "hidden", marginBottom: 6 }}>
+                  <View style={{ height: "100%", width: `${folder.progress}%`, borderRadius: radius.pill, backgroundColor: folder.progress >= 100 ? colors.mint : colors.indigo }} />
+                </View>
+                <Text style={{ fontFamily: fonts.body, fontSize: 11, color: colors.inkFaint }}>
+                  {folder.completedCount}/{folder.videoCount} completed · {folder.progress}%
+                </Text>
+              </View>
+            </AnimatedPressable>
+          </Animated.View>
         )}
-        contentContainerStyle={{ paddingBottom: 24 }}
+        contentContainerStyle={{ paddingTop: 4, paddingBottom: 24 }}
         ListEmptyComponent={
-          <View className="items-center py-16 px-5">
-            <Play size={48} color="#9ca3af" />
-            <Text className="text-foreground font-bold text-base mt-3">No video folders found</Text>
-            <Text className="text-muted-foreground text-sm text-center mt-1">
+          <View style={{ alignItems: "center", paddingVertical: 64, paddingHorizontal: 32 }}>
+            <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: colors.surfaceMuted, alignItems: "center", justifyContent: "center", marginBottom: spacing.lg }}>
+              <Play size={30} color={colors.inkFaint} />
+            </View>
+            <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 15, color: colors.ink, marginBottom: 4 }}>
+              No video folders found
+            </Text>
+            <Text style={{ ...type.body, fontSize: 13, color: colors.inkMuted, textAlign: "center" }}>
               {searchQuery || selectedSubject !== "all" ? "Try adjusting your filters." : "Your teachers haven't uploaded any videos yet."}
             </Text>
           </View>

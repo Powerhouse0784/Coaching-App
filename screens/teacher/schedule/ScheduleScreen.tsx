@@ -1,17 +1,25 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import {
-  View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Dimensions,
-} from "react-native";
+import { View, Text, ScrollView, ActivityIndicator, Dimensions, ImageBackground } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient";
+import { BlurView } from "expo-blur";
+import Animated, { FadeIn, FadeInDown, FadeInUp } from "react-native-reanimated";
 import {
   ArrowLeft, ChevronLeft, ChevronRight, Calendar as CalendarIcon,
-  BookOpen, PartyPopper, Plus, Clock, Trash2, AlertCircle,
+  BookOpen, PartyPopper, Plus, Clock, Trash2, AlertCircle, Sparkles,
 } from "lucide-react-native";
 import { useNavigation } from "@react-navigation/native";
 import api from "@/lib/api";
 import type { ScheduleSession, CustomHoliday, NationalHoliday } from "@/types";
 import SessionFormModal from "@/components/teacher/SessionFormModal";
 import HolidayFormModal from "@/components/teacher/HolidayFormModal";
+import AnimatedPressable from "@/components/ui/AnimatedPressable";
+import ProgressRing from "@/components/ui/ProgressRing";
+import { MiniStat } from "@/components/ui/StatPrimitives";
+import { colors, fonts, radius, spacing, type } from "@/constants/theme";
+
+// Placeholder editorial photography — swap for your own planner/classroom photo before launch.
+const HERO_PHOTO = "https://images.unsplash.com/photo-1506784983877-45594efa4cbe?w=1200&q=80&auto=format&fit=crop";
 
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const DAY_NAMES_FULL = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -21,7 +29,7 @@ const MONTH_NAMES = [
 ];
 
 const { width } = Dimensions.get("window");
-const CELL_SIZE = (width - 40) / 7;
+const CELL_SIZE = (width - 40 - 2) / 7;
 
 function toDateKey(y: number, m: number, d: number) {
   return `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
@@ -121,7 +129,11 @@ export default function ScheduleScreen() {
   const selectedIsPast = selectedDateKey ? selectedDateKey < todayKey : false;
 
   const totalSessions = sessions.length;
+  const daysInThisMonth = calendarCells.filter((c) => c.day !== null).length;
   const holidaysThisMonth = calendarCells.filter((c) => c.dateKey && holidaysByDate.has(c.dateKey)).length;
+  const scheduledDaysThisMonth = calendarCells.filter((c) => c.dateKey && sessionsByDate.has(c.dateKey)).length;
+  const subjectCount = new Set(sessions.map((s) => s.subject)).size;
+  const coverageRatio = daysInThisMonth > 0 ? scheduledDaysThisMonth / daysInThisMonth : 0;
 
   const handleSaveSession = async (payload: any): Promise<boolean> => {
     try {
@@ -178,215 +190,221 @@ export default function ScheduleScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView className="flex-1 bg-background items-center justify-center">
-        <ActivityIndicator size="large" color="#0d9488" />
-        <Text className="text-muted-foreground mt-3">Loading schedule…</Text>
+      <SafeAreaView style={{ flex: 1, backgroundColor: colors.paper, alignItems: "center", justifyContent: "center" }}>
+        <ActivityIndicator size="large" color={colors.indigo} />
+        <Text style={{ ...type.body, color: colors.inkMuted, marginTop: spacing.md }}>Loading schedule…</Text>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-background">
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 32 }}>
-        <View className="flex-row items-center gap-3 mb-4">
-          <TouchableOpacity onPress={() => navigation.goBack()} className="w-9 h-9 bg-secondary rounded-lg items-center justify-center">
-            <ArrowLeft size={18} color="#374151" />
-          </TouchableOpacity>
-          <View className="w-9 h-9 bg-teal-600 rounded-xl items-center justify-center">
-            <CalendarIcon size={16} color="#fff" />
-          </View>
-          <View className="flex-1">
-            <Text className="font-bold text-foreground text-base">Teaching Schedule</Text>
-            <Text className="text-xs text-muted-foreground">Tap a date to add sessions or holidays</Text>
-          </View>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.paper }} edges={["top"]}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 32 }}>
+        {/* Cinematic photo hero */}
+        <View style={{ borderBottomLeftRadius: 36, borderBottomRightRadius: 36, overflow: "hidden" }}>
+          <ImageBackground source={{ uri: HERO_PHOTO }} resizeMode="cover">
+            <LinearGradient colors={["rgba(27,44,92,0.6)", "rgba(27,44,92,0.8)", "rgba(16,24,49,0.95)"]} style={{ paddingHorizontal: 20, paddingTop: 14, paddingBottom: 26 }}>
+              <Animated.View entering={FadeIn.duration(400)} style={{ flexDirection: "row", alignItems: "center", gap: 12, marginBottom: spacing.lg }}>
+                <AnimatedPressable pressScale={0.9} onPress={() => navigation.goBack()} style={{ width: 36, height: 36, borderRadius: radius.sm, backgroundColor: "rgba(255,255,255,0.14)", alignItems: "center", justifyContent: "center" }}>
+                  <ArrowLeft size={18} color={colors.white} />
+                </AnimatedPressable>
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start", backgroundColor: "rgba(255,255,255,0.14)", paddingHorizontal: 10, paddingVertical: 4, borderRadius: radius.pill, marginBottom: 6 }}>
+                    <Sparkles size={10} color={colors.gold} />
+                    <Text style={{ color: colors.white, fontFamily: fonts.bodySemibold, fontSize: 10 }}>Teaching Schedule</Text>
+                  </View>
+                  <Text style={{ fontFamily: fonts.displayBold, fontSize: 24, lineHeight: 28, color: colors.white, textShadowColor: "rgba(0,0,0,0.3)", textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 6 }}>
+                    {MONTH_NAMES[viewMonth]} {viewYear}
+                  </Text>
+                </View>
+              </Animated.View>
+
+              <Animated.View entering={FadeInDown.duration(450).delay(100)}>
+                <BlurView intensity={45} tint="dark" style={{ borderRadius: radius.lg, overflow: "hidden", borderWidth: 1, borderColor: "rgba(255,255,255,0.18)" }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", padding: spacing.lg, gap: spacing.lg }}>
+                    <ProgressRing progress={coverageRatio} color={colors.mint} label="COVERED" />
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: "rgba(255,255,255,0.65)", fontFamily: fonts.bodyMedium, fontSize: 10.5, letterSpacing: 0.4, marginBottom: 8 }}>THIS MONTH</Text>
+                      <View style={{ flexDirection: "row", flexWrap: "wrap", rowGap: 8, columnGap: 16 }}>
+                        <MiniStat icon={BookOpen} value={totalSessions} label="sessions" />
+                        <MiniStat icon={PartyPopper} value={holidaysThisMonth} label="holidays" />
+                        <MiniStat icon={CalendarIcon} value={subjectCount} label="subjects" />
+                      </View>
+                    </View>
+                  </View>
+                </BlurView>
+              </Animated.View>
+            </LinearGradient>
+          </ImageBackground>
         </View>
 
-        {loadError ? (
-          <View className="flex-row items-center gap-2 bg-red-50 border-2 border-red-200 rounded-xl p-3 mb-4">
-            <AlertCircle size={16} color="#dc2626" />
-            <Text className="text-sm text-red-700 flex-1">{loadError}</Text>
-          </View>
-        ) : null}
+        <View style={{ paddingHorizontal: 20, paddingTop: spacing.lg }}>
+          {loadError ? (
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: colors.coralTint, borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.lg }}>
+              <AlertCircle size={16} color={colors.coral} />
+              <Text style={{ fontSize: 13, color: colors.coral, flex: 1, fontFamily: fonts.body }}>{loadError}</Text>
+            </View>
+          ) : null}
 
-        <View className="flex-row gap-2.5 mb-4">
-          <View className="flex-1 bg-card rounded-2xl p-3 border border-border">
-            <View className="w-8 h-8 bg-blue-100 rounded-xl items-center justify-center mb-2">
-              <BookOpen size={14} color="#2563eb" />
-            </View>
-            <Text className="text-base font-bold text-foreground">{totalSessions}</Text>
-            <Text className="text-[10px] text-muted-foreground">Total Sessions</Text>
-          </View>
-          <View className="flex-1 bg-card rounded-2xl p-3 border border-border">
-            <View className="w-8 h-8 bg-red-100 rounded-xl items-center justify-center mb-2">
-              <PartyPopper size={14} color="#dc2626" />
-            </View>
-            <Text className="text-base font-bold text-foreground">{holidaysThisMonth}</Text>
-            <Text className="text-[10px] text-muted-foreground">Holidays This Month</Text>
-          </View>
-          <View className="flex-1 bg-card rounded-2xl p-3 border border-border">
-            <View className="w-8 h-8 bg-green-100 rounded-xl items-center justify-center mb-2">
-              <CalendarIcon size={14} color="#16a34a" />
-            </View>
-            <Text className="text-base font-bold text-foreground">{new Set(sessions.map((s) => s.subject)).size}</Text>
-            <Text className="text-[10px] text-muted-foreground">Subjects</Text>
-          </View>
-        </View>
-
-        <View className="bg-card rounded-2xl border border-border overflow-hidden mb-4">
-          <View className="flex-row items-center justify-between p-4 border-b border-border">
-            <TouchableOpacity onPress={() => changeMonth(-1)} className="p-2">
-              <ChevronLeft size={20} color="#374151" />
-            </TouchableOpacity>
-            <View className="items-center">
-              <Text className="font-bold text-foreground text-base">{MONTH_NAMES[viewMonth]} {viewYear}</Text>
-              <TouchableOpacity onPress={goToToday}>
-                <Text className="text-xs text-teal-600 font-semibold">Jump to Today</Text>
-              </TouchableOpacity>
-            </View>
-            <TouchableOpacity onPress={() => changeMonth(1)} className="p-2">
-              <ChevronRight size={20} color="#374151" />
-            </TouchableOpacity>
-          </View>
-
-          <View className="flex-row border-b border-border">
-            {DAY_NAMES.map((d) => (
-              <View key={d} style={{ width: CELL_SIZE }} className="items-center py-2">
-                <Text className="text-[10px] font-semibold text-muted-foreground">{d}</Text>
+          {/* Calendar */}
+          <Animated.View entering={FadeInUp.duration(300)} style={{ backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, overflow: "hidden", marginBottom: spacing.lg }}>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+              <AnimatedPressable pressScale={0.9} onPress={() => changeMonth(-1)} style={{ padding: 8 }}>
+                <ChevronLeft size={20} color={colors.ink} />
+              </AnimatedPressable>
+              <View style={{ alignItems: "center" }}>
+                <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 15, color: colors.ink }}>{MONTH_NAMES[viewMonth]} {viewYear}</Text>
+                <AnimatedPressable pressScale={0.95} onPress={goToToday}>
+                  <Text style={{ fontSize: 11.5, color: colors.indigo, fontFamily: fonts.bodySemibold }}>Jump to Today</Text>
+                </AnimatedPressable>
               </View>
-            ))}
-          </View>
-
-          <View className="flex-row flex-wrap">
-            {calendarCells.map((cell, idx) => {
-              if (!cell.day) return <View key={idx} style={{ width: CELL_SIZE, height: CELL_SIZE }} className="border-b border-r border-border" />;
-              const isToday = cell.dateKey === todayKey;
-              const isPast = cell.dateKey! < todayKey;
-              const isSelected = cell.dateKey === selectedDateKey;
-              const holiday = holidaysByDate.get(cell.dateKey!);
-              const daySessions = sessionsByDate.get(cell.dateKey!) || [];
-
-              return (
-                <TouchableOpacity
-                  key={idx}
-                  onPress={() => !isPast && setSelectedDateKey(cell.dateKey)}
-                  disabled={isPast}
-                  style={{ width: CELL_SIZE, height: CELL_SIZE, opacity: isPast ? 0.35 : 1 }}
-                  className={`border-b border-r border-border p-1 ${isSelected && !isPast ? "bg-teal-50" : ""} ${holiday && !isPast ? "bg-red-50" : ""}`}
-                >
-                  {isToday ? (
-                    <View className="w-5 h-5 bg-teal-600 rounded-full items-center justify-center">
-                      <Text className="text-white text-[10px] font-bold">{cell.day}</Text>
-                    </View>
-                  ) : (
-                    <Text
-                      className={`text-[10px] font-semibold ${
-                        isPast ? "text-gray-400" : holiday ? "text-red-600" : "text-foreground"
-                      }`}
-                      style={holiday && !isPast ? { fontWeight: "800" } : undefined}
-                    >
-                      {cell.day}
-                    </Text>
-                  )}
-                  {holiday && (
-                    <Text
-                      className={`text-[7px] font-medium mt-0.5 ${isPast ? "text-gray-400" : "text-red-600"}`}
-                      numberOfLines={2}
-                    >
-                      🎉 {holiday.title}
-                    </Text>
-                  )}
-                  <View className="flex-row flex-wrap gap-0.5 absolute bottom-1 left-1">
-                    {daySessions.slice(0, 3).map((s) => (
-                      <View key={s.id} style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: isPast ? "#9ca3af" : s.color }} />
-                    ))}
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        </View>
-
-        <View className="bg-card rounded-2xl border border-border p-4">
-          {selectedDateKey ? (
-            <>
-              <Text className="font-bold text-foreground text-sm mb-1">{formatDateLabel(selectedDateKey)}</Text>
-
-              {selectedIsPast ? (
-                <Text className="text-sm text-muted-foreground py-4 text-center">
-                  This date has passed. Past sessions can't be modified.
-                </Text>
-              ) : (
-                <>
-                  {selectedHoliday ? (
-                    <View className="flex-row items-center gap-2 bg-red-50 border border-red-200 rounded-xl p-2.5 mb-3 mt-2">
-                      <PartyPopper size={14} color="#dc2626" />
-                      <Text className="text-sm font-medium text-red-700 flex-1">{selectedHoliday.title}</Text>
-                      {selectedHoliday.tentative ? (
-                        <View className="bg-red-200 px-1.5 py-0.5 rounded-full">
-                          <Text className="text-[9px] text-red-800">Tentative</Text>
-                        </View>
-                      ) : null}
-                      {selectedHoliday.isCustom && selectedHoliday.id ? (
-                        <TouchableOpacity onPress={() => handleDeleteHoliday(selectedHoliday.id!)}>
-                          <Trash2 size={14} color="#dc2626" />
-                        </TouchableOpacity>
-                      ) : null}
-                    </View>
-                  ) : (
-                    <TouchableOpacity
-                      onPress={() => setShowHolidayModal(true)}
-                      className="flex-row items-center justify-center gap-1.5 py-2.5 mt-2 mb-3 border-2 border-dashed border-red-300 rounded-xl"
-                    >
-                      <PartyPopper size={14} color="#dc2626" />
-                      <Text className="text-red-600 text-xs font-semibold">Mark as Holiday</Text>
-                    </TouchableOpacity>
-                  )}
-
-                  <View className="gap-2 mt-2">
-                    {selectedSessions.length === 0 ? (
-                      <Text className="text-sm text-muted-foreground py-4 text-center">No sessions scheduled for this day.</Text>
-                    ) : (
-                      selectedSessions.map((s) => (
-                        <TouchableOpacity
-                          key={s.id}
-                          onPress={() => { setEditingSession(s); setShowSessionModal(true); }}
-                          className="rounded-xl p-3 border-2"
-                          style={{ borderColor: s.color + "55", backgroundColor: s.color + "10" }}
-                        >
-                          <Text className="font-semibold text-sm text-foreground mb-1">{s.title}</Text>
-                          <View className="flex-row items-center gap-1.5">
-                            <Clock size={11} color="#9ca3af" />
-                            <Text className="text-xs text-muted-foreground">{s.startTime} - {s.endTime}</Text>
-                          </View>
-                          <View className="flex-row gap-1.5 mt-1.5">
-                            <View className="bg-white px-2 py-0.5 rounded-full border border-border">
-                              <Text className="text-[10px] text-muted-foreground">{s.subject}</Text>
-                            </View>
-                            <View className="bg-white px-2 py-0.5 rounded-full border border-border">
-                              <Text className="text-[10px] text-muted-foreground">{s.class}</Text>
-                            </View>
-                          </View>
-                        </TouchableOpacity>
-                      ))
-                    )}
-                  </View>
-
-                  <TouchableOpacity
-                    onPress={() => { setEditingSession(null); setShowSessionModal(true); }}
-                    className="flex-row items-center justify-center gap-1.5 py-2.5 mt-3 border-2 border-dashed border-border rounded-xl"
-                  >
-                    <Plus size={14} color="#6b7280" />
-                    <Text className="text-muted-foreground text-xs font-semibold">Add Session for This Day</Text>
-                  </TouchableOpacity>
-                </>
-              )}
-            </>
-          ) : (
-            <View className="items-center py-8">
-              <CalendarIcon size={40} color="#9ca3af" />
-              <Text className="text-muted-foreground text-sm mt-2 text-center">Tap a date on the calendar to see or add sessions.</Text>
+              <AnimatedPressable pressScale={0.9} onPress={() => changeMonth(1)} style={{ padding: 8 }}>
+                <ChevronRight size={20} color={colors.ink} />
+              </AnimatedPressable>
             </View>
-          )}
+
+            <View style={{ flexDirection: "row", borderBottomWidth: 1, borderBottomColor: colors.border }}>
+              {DAY_NAMES.map((d) => (
+                <View key={d} style={{ width: CELL_SIZE, alignItems: "center", paddingVertical: 8 }}>
+                  <Text style={{ fontSize: 10, fontFamily: fonts.bodySemibold, color: colors.inkMuted }}>{d}</Text>
+                </View>
+              ))}
+            </View>
+
+            <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
+              {calendarCells.map((cell, idx) => {
+                if (!cell.day) return <View key={idx} style={{ width: CELL_SIZE, height: CELL_SIZE, borderBottomWidth: 1, borderRightWidth: 1, borderColor: colors.border }} />;
+                const isToday = cell.dateKey === todayKey;
+                const isPast = cell.dateKey! < todayKey;
+                const isSelected = cell.dateKey === selectedDateKey;
+                const holiday = holidaysByDate.get(cell.dateKey!);
+                const daySessions = sessionsByDate.get(cell.dateKey!) || [];
+
+                return (
+                  <AnimatedPressable
+                    key={idx}
+                    pressScale={0.94}
+                    onPress={() => !isPast && setSelectedDateKey(cell.dateKey)}
+                    disabled={isPast}
+                    style={{
+                      width: CELL_SIZE, height: CELL_SIZE, opacity: isPast ? 0.35 : 1, padding: 4,
+                      borderBottomWidth: 1, borderRightWidth: 1, borderColor: colors.border,
+                      backgroundColor: isSelected && !isPast ? colors.indigoTint : holiday && !isPast ? colors.coralTint : "transparent",
+                    }}
+                  >
+                    {isToday ? (
+                      <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: colors.indigo, alignItems: "center", justifyContent: "center" }}>
+                        <Text style={{ color: colors.white, fontSize: 10, fontFamily: fonts.bodySemibold }}>{cell.day}</Text>
+                      </View>
+                    ) : (
+                      <Text style={{ fontSize: 10, fontFamily: fonts.bodySemibold, color: isPast ? colors.inkFaint : holiday ? colors.coral : colors.ink }}>
+                        {cell.day}
+                      </Text>
+                    )}
+                    {holiday && (
+                      <Text style={{ fontSize: 6.5, fontFamily: fonts.bodyMedium, color: isPast ? colors.inkFaint : colors.coral, marginTop: 1 }} numberOfLines={2}>
+                        🎉 {holiday.title}
+                      </Text>
+                    )}
+                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 2, position: "absolute", bottom: 4, left: 4 }}>
+                      {daySessions.slice(0, 3).map((s) => (
+                        <View key={s.id} style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: isPast ? colors.inkFaint : s.color }} />
+                      ))}
+                    </View>
+                  </AnimatedPressable>
+                );
+              })}
+            </View>
+          </Animated.View>
+
+          {/* Selected day panel */}
+          <Animated.View entering={FadeInUp.duration(300).delay(80)} style={{ backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, padding: spacing.lg }}>
+            {selectedDateKey ? (
+              <>
+                <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 14, color: colors.ink, marginBottom: 4 }}>{formatDateLabel(selectedDateKey)}</Text>
+
+                {selectedIsPast ? (
+                  <Text style={{ fontSize: 13, color: colors.inkMuted, paddingVertical: spacing.lg, textAlign: "center", fontFamily: fonts.body }}>
+                    This date has passed. Past sessions can't be modified.
+                  </Text>
+                ) : (
+                  <>
+                    {selectedHoliday ? (
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: colors.coralTint, borderWidth: 1, borderColor: "rgba(193,68,58,0.25)", borderRadius: radius.md, padding: spacing.md, marginTop: spacing.sm, marginBottom: spacing.md }}>
+                        <PartyPopper size={14} color={colors.coral} />
+                        <Text style={{ fontSize: 13, fontFamily: fonts.bodyMedium, color: colors.coral, flex: 1 }}>{selectedHoliday.title}</Text>
+                        {selectedHoliday.tentative ? (
+                          <View style={{ backgroundColor: "rgba(193,68,58,0.2)", paddingHorizontal: 7, paddingVertical: 3, borderRadius: radius.pill }}>
+                            <Text style={{ fontSize: 9, color: colors.coral, fontFamily: fonts.bodySemibold }}>Tentative</Text>
+                          </View>
+                        ) : null}
+                        {selectedHoliday.isCustom && selectedHoliday.id ? (
+                          <AnimatedPressable pressScale={0.9} onPress={() => handleDeleteHoliday(selectedHoliday.id!)}>
+                            <Trash2 size={14} color={colors.coral} />
+                          </AnimatedPressable>
+                        ) : null}
+                      </View>
+                    ) : (
+                      <AnimatedPressable
+                        pressScale={0.97}
+                        onPress={() => setShowHolidayModal(true)}
+                        style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, paddingVertical: 11, marginTop: spacing.sm, marginBottom: spacing.md, borderWidth: 1.5, borderStyle: "dashed", borderColor: "rgba(193,68,58,0.35)", borderRadius: radius.md }}
+                      >
+                        <PartyPopper size={14} color={colors.coral} />
+                        <Text style={{ color: colors.coral, fontSize: 12.5, fontFamily: fonts.bodySemibold }}>Mark as Holiday</Text>
+                      </AnimatedPressable>
+                    )}
+
+                    <View style={{ gap: 8, marginTop: spacing.sm }}>
+                      {selectedSessions.length === 0 ? (
+                        <Text style={{ fontSize: 13, color: colors.inkMuted, paddingVertical: spacing.lg, textAlign: "center", fontFamily: fonts.body }}>No sessions scheduled for this day.</Text>
+                      ) : (
+                        selectedSessions.map((s, i) => (
+                          <Animated.View key={s.id} entering={FadeInDown.duration(250).delay(i * 40)}>
+                            <AnimatedPressable
+                              pressScale={0.97}
+                              onPress={() => { setEditingSession(s); setShowSessionModal(true); }}
+                              style={{ borderRadius: radius.md, padding: spacing.md, borderWidth: 1.5, borderColor: `${s.color}55`, backgroundColor: `${s.color}12` }}
+                            >
+                              <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 13, color: colors.ink, marginBottom: 4 }}>{s.title}</Text>
+                              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                                <Clock size={11} color={colors.inkFaint} />
+                                <Text style={{ fontSize: 11.5, color: colors.inkMuted, fontFamily: fonts.body }}>{s.startTime} - {s.endTime}</Text>
+                              </View>
+                              <View style={{ flexDirection: "row", gap: 6, marginTop: 7 }}>
+                                <View style={{ backgroundColor: colors.surface, paddingHorizontal: 8, paddingVertical: 3, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.border }}>
+                                  <Text style={{ fontSize: 10, color: colors.inkMuted, fontFamily: fonts.body }}>{s.subject}</Text>
+                                </View>
+                                <View style={{ backgroundColor: colors.surface, paddingHorizontal: 8, paddingVertical: 3, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.border }}>
+                                  <Text style={{ fontSize: 10, color: colors.inkMuted, fontFamily: fonts.body }}>{s.class}</Text>
+                                </View>
+                              </View>
+                            </AnimatedPressable>
+                          </Animated.View>
+                        ))
+                      )}
+                    </View>
+
+                    <AnimatedPressable
+                      pressScale={0.97}
+                      onPress={() => { setEditingSession(null); setShowSessionModal(true); }}
+                      style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, paddingVertical: 11, marginTop: spacing.md, borderWidth: 1.5, borderStyle: "dashed", borderColor: colors.border, borderRadius: radius.md }}
+                    >
+                      <Plus size={14} color={colors.inkMuted} />
+                      <Text style={{ color: colors.inkMuted, fontSize: 12.5, fontFamily: fonts.bodySemibold }}>Add Session for This Day</Text>
+                    </AnimatedPressable>
+                  </>
+                )}
+              </>
+            ) : (
+              <View style={{ alignItems: "center", paddingVertical: spacing.xl }}>
+                <View style={{ width: 60, height: 60, borderRadius: 30, backgroundColor: colors.indigoTint, alignItems: "center", justifyContent: "center", marginBottom: spacing.md }}>
+                  <CalendarIcon size={26} color={colors.indigo} />
+                </View>
+                <Text style={{ fontSize: 13, color: colors.inkMuted, textAlign: "center", fontFamily: fonts.body }}>Tap a date on the calendar to see or add sessions.</Text>
+              </View>
+            )}
+          </Animated.View>
         </View>
       </ScrollView>
 

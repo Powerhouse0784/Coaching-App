@@ -1,16 +1,31 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
-  View, Text, TextInput, TouchableOpacity, FlatList,
-  ActivityIndicator, Image, Modal, ScrollView,
+  View, Text, FlatList, ActivityIndicator, Image, Modal, ScrollView, ImageBackground,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient";
+import { BlurView } from "expo-blur";
+import Svg, { Circle } from "react-native-svg";
+import Animated, {
+  FadeIn, FadeInDown, ZoomIn, SlideInDown,
+  useSharedValue, useAnimatedStyle, withRepeat, withTiming, Easing,
+} from "react-native-reanimated";
 import {
-  ArrowLeft, Search, Users, Activity, TrendingUp, Trophy,
-  Mail, MapPin, Calendar, X, Phone,
+  ArrowLeft, Search, Users, UserCheck, Sparkles, Trophy,
+  Mail, MapPin, Calendar, X, Phone, ClipboardList,
 } from "lucide-react-native";
 import { useNavigation } from "@react-navigation/native";
 import api from "@/lib/api";
 import type { DirectoryUser } from "@/types";
+import Input from "@/components/ui/Input";
+import Badge from "@/components/ui/Badge";
+import AnimatedPressable from "@/components/ui/AnimatedPressable";
+import { colors, fonts, radius, spacing, type } from "@/constants/theme";
+
+// Placeholder editorial photography — swap for your own classroom/student photo before launch.
+const HERO_PHOTO = "https://images.unsplash.com/photo-1571260899304-425eee4c7efc?w=1200&q=80&auto=format&fit=crop";
+
+type FilterKind = "all" | "active" | "new" | "incomplete";
 
 function getInitials(name: string) {
   if (!name) return "?";
@@ -33,11 +48,96 @@ function calculateAge(dob: string | null) {
   return age;
 }
 
+function isNewThisMonth(createdAt: string) {
+  const d = new Date(createdAt);
+  const now = new Date();
+  return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+}
+function isNewThisWeek(createdAt: string) {
+  const days = (Date.now() - new Date(createdAt).getTime()) / (1000 * 60 * 60 * 24);
+  return days <= 7;
+}
+function hasCompleteProfile(s: DirectoryUser) {
+  return !!(s.phone && s.location && s.bio);
+}
+
+function useCountUp(target: number, duration = 700) {
+  const [display, setDisplay] = useState(0);
+  useEffect(() => {
+    let raf: number;
+    const start = Date.now();
+    const tick = () => {
+      const elapsed = Date.now() - start;
+      const t = Math.min(1, elapsed / duration);
+      const eased = 1 - Math.pow(1 - t, 3);
+      setDisplay(Math.round(target * eased));
+      if (t < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [target, duration]);
+  return display;
+}
+
+function ProgressRing({ progress, size = 72, strokeWidth = 7 }: { progress: number; size?: number; strokeWidth?: number }) {
+  const radiusPx = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radiusPx;
+  const offset = circumference * (1 - Math.min(Math.max(progress, 0), 1));
+  const glow = useSharedValue(0.55);
+  useEffect(() => {
+    glow.value = withRepeat(withTiming(1, { duration: 1400, easing: Easing.inOut(Easing.ease) }), -1, true);
+  }, []);
+  const glowStyle = useAnimatedStyle(() => ({ opacity: glow.value }));
+
+  return (
+    <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}>
+      <Animated.View style={[{ position: "absolute", width: size + 12, height: size + 12, borderRadius: 999, backgroundColor: `${colors.mint}30` }, glowStyle]} />
+      <Svg width={size} height={size}>
+        <Circle cx={size / 2} cy={size / 2} r={radiusPx} stroke="rgba(255,255,255,0.2)" strokeWidth={strokeWidth} fill="none" />
+        <Circle
+          cx={size / 2} cy={size / 2} r={radiusPx}
+          stroke={colors.mint} strokeWidth={strokeWidth} fill="none"
+          strokeDasharray={circumference} strokeDashoffset={offset} strokeLinecap="round"
+          rotation={-90} origin={`${size / 2}, ${size / 2}`}
+        />
+      </Svg>
+      <View style={{ position: "absolute", alignItems: "center" }}>
+        <Text style={{ color: colors.white, fontFamily: fonts.displayBold, fontSize: 15 }}>{Math.round(progress * 100)}%</Text>
+        <Text style={{ color: "rgba(255,255,255,0.6)", fontFamily: fonts.body, fontSize: 8 }}>ACTIVE</Text>
+      </View>
+    </View>
+  );
+}
+
+function MiniStat({ icon: Icon, value, label }: { icon: typeof Users; value: number; label: string }) {
+  const count = useCountUp(value);
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+      <Icon size={12} color="rgba(255,255,255,0.7)" />
+      <Text style={{ color: colors.white, fontFamily: fonts.bodySemibold, fontSize: 13 }}>{count}</Text>
+      <Text style={{ color: "rgba(255,255,255,0.5)", fontFamily: fonts.body, fontSize: 10.5 }} numberOfLines={1}>{label}</Text>
+    </View>
+  );
+}
+
+const AVATAR_GRADIENTS: [string, string][] = [
+  [colors.indigo, colors.indigoDark],
+  ["#C99A2E", "#8A6D1F"],
+  [colors.mint, "#1F6B45"],
+  [colors.coral, "#8E2E24"],
+];
+function gradientForName(name: string) {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  return AVATAR_GRADIENTS[Math.abs(hash) % AVATAR_GRADIENTS.length];
+}
+
 export default function StudentsListScreen() {
   const navigation = useNavigation();
   const [students, setStudents] = useState<DirectoryUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [filterKind, setFilterKind] = useState<FilterKind>("all");
   const [selectedStudent, setSelectedStudent] = useState<DirectoryUser | null>(null);
 
   const fetchStudents = useCallback(async () => {
@@ -55,7 +155,15 @@ export default function StudentsListScreen() {
     fetchStudents();
   }, [fetchStudents]);
 
+  const activeCount = useMemo(() => students.filter((s) => s.isActive).length, [students]);
+  const newThisMonth = useMemo(() => students.filter((s) => isNewThisMonth(s.createdAt)).length, [students]);
+  const completeProfiles = useMemo(() => students.filter(hasCompleteProfile).length, [students]);
+  const activeRatio = students.length > 0 ? activeCount / students.length : 0;
+
   const filtered = students.filter((s) => {
+    if (filterKind === "active" && !s.isActive) return false;
+    if (filterKind === "new" && !isNewThisMonth(s.createdAt)) return false;
+    if (filterKind === "incomplete" && hasCompleteProfile(s)) return false;
     if (!searchQuery.trim()) return true;
     const q = searchQuery.toLowerCase();
     return (
@@ -66,193 +174,230 @@ export default function StudentsListScreen() {
     );
   });
 
-  const stats = [
-    { icon: Users, value: students.length, label: "Total Students", color: "#3b82f6" },
-    { icon: Activity, value: Math.floor(students.length * 0.8), label: "Active Today", color: "#22c55e" },
-    { icon: TrendingUp, value: Math.floor(students.length * 0.15), label: "This Month", color: "#a855f7" },
-    { icon: Trophy, value: students.length, label: "All Time", color: "#f59e0b" },
+  const filters: { value: FilterKind; label: string }[] = [
+    { value: "all", label: "All" },
+    { value: "active", label: "Active" },
+    { value: "new", label: "New This Month" },
+    { value: "incomplete", label: "Incomplete Profile" },
   ];
 
   if (loading) {
     return (
-      <SafeAreaView className="flex-1 bg-background items-center justify-center">
-        <ActivityIndicator size="large" color="#22c55e" />
-        <Text className="text-muted-foreground mt-3">Loading students…</Text>
+      <SafeAreaView style={{ flex: 1, backgroundColor: colors.paper, alignItems: "center", justifyContent: "center" }}>
+        <ActivityIndicator size="large" color={colors.indigo} />
+        <Text style={{ ...type.body, color: colors.inkMuted, marginTop: spacing.md }}>Loading students…</Text>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-background">
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.paper }} edges={["top"]}>
       <FlatList
         data={filtered}
         keyExtractor={(item) => item.id}
+        showsVerticalScrollIndicator={false}
         ListHeaderComponent={
-          <View className="px-5 pt-2">
-            <View className="flex-row items-center gap-3 mb-4">
-              <TouchableOpacity onPress={() => navigation.goBack()} className="w-9 h-9 bg-secondary rounded-lg items-center justify-center">
-                <ArrowLeft size={18} color="#374151" />
-              </TouchableOpacity>
-              <View>
-                <Text className="text-lg font-bold text-foreground">Students</Text>
-                <Text className="text-xs text-muted-foreground">Monitor progress, attendance, and performance</Text>
-              </View>
+          <View>
+            {/* Cinematic photo hero */}
+            <View style={{ borderBottomLeftRadius: 36, borderBottomRightRadius: 36, overflow: "hidden" }}>
+              <ImageBackground source={{ uri: HERO_PHOTO }} resizeMode="cover">
+                <LinearGradient colors={["rgba(27,44,92,0.6)", "rgba(27,44,92,0.8)", "rgba(16,24,49,0.95)"]} style={{ paddingHorizontal: 20, paddingTop: 14, paddingBottom: 26 }}>
+                  <Animated.View entering={FadeIn.duration(400)} style={{ flexDirection: "row", alignItems: "center", gap: 12, marginBottom: spacing.lg }}>
+                    <AnimatedPressable pressScale={0.9} onPress={() => navigation.goBack()} style={{ width: 36, height: 36, borderRadius: radius.sm, backgroundColor: "rgba(255,255,255,0.14)", alignItems: "center", justifyContent: "center" }}>
+                      <ArrowLeft size={18} color={colors.white} />
+                    </AnimatedPressable>
+                    <View style={{ flex: 1 }}>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start", backgroundColor: "rgba(255,255,255,0.14)", paddingHorizontal: 10, paddingVertical: 4, borderRadius: radius.pill, marginBottom: 6 }}>
+                        <Sparkles size={10} color={colors.gold} />
+                        <Text style={{ color: colors.white, fontFamily: fonts.bodySemibold, fontSize: 10 }}>Student Directory</Text>
+                      </View>
+                      <Text style={{ fontFamily: fonts.displayBold, fontSize: 26, lineHeight: 30, color: colors.white, textShadowColor: "rgba(0,0,0,0.3)", textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 6 }}>
+                        My Students
+                      </Text>
+                    </View>
+                  </Animated.View>
+
+                  <Animated.View entering={FadeInDown.duration(450).delay(100)}>
+                    <BlurView intensity={45} tint="dark" style={{ borderRadius: radius.lg, overflow: "hidden", borderWidth: 1, borderColor: "rgba(255,255,255,0.18)" }}>
+                      <View style={{ flexDirection: "row", alignItems: "center", padding: spacing.lg, gap: spacing.lg }}>
+                        <ProgressRing progress={activeRatio} />
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ color: "rgba(255,255,255,0.65)", fontFamily: fonts.bodyMedium, fontSize: 10.5, letterSpacing: 0.4, marginBottom: 8 }}>ENGAGEMENT SNAPSHOT</Text>
+                          <View style={{ flexDirection: "row", flexWrap: "wrap", rowGap: 8, columnGap: 16 }}>
+                            <MiniStat icon={Users} value={students.length} label="total" />
+                            <MiniStat icon={Trophy} value={newThisMonth} label="new" />
+                            <MiniStat icon={ClipboardList} value={completeProfiles} label="complete" />
+                          </View>
+                        </View>
+                      </View>
+                    </BlurView>
+                  </Animated.View>
+                </LinearGradient>
+              </ImageBackground>
             </View>
 
-            <View className="flex-row flex-wrap gap-3 mb-4">
-              {stats.map((s, idx) => (
-                <View key={idx} className="bg-card rounded-2xl p-3 border border-border" style={{ minWidth: "45%" }}>
-                  <View className="w-9 h-9 rounded-xl items-center justify-center mb-2" style={{ backgroundColor: `${s.color}20` }}>
-                    <s.icon size={16} color={s.color} />
-                  </View>
-                  <Text className="text-lg font-bold text-foreground">{s.value}</Text>
-                  <Text className="text-xs text-muted-foreground">{s.label}</Text>
-                </View>
-              ))}
-            </View>
-
-            <View className="flex-row items-center border-2 border-border rounded-xl px-3 mb-4 bg-card">
-              <Search size={16} color="#9ca3af" />
-              <TextInput
+            <View style={{ paddingHorizontal: 20, paddingTop: spacing.lg }}>
+              <Input
                 value={searchQuery}
                 onChangeText={setSearchQuery}
                 placeholder="Search by name, email, phone, location…"
-                className="flex-1 py-2.5 px-2 text-foreground text-sm"
+                leftIcon={<Search size={16} color={colors.inkFaint} />}
               />
-            </View>
+              <View style={{ height: spacing.md }} />
 
-            <Text className="text-xs text-muted-foreground mb-3">Showing {filtered.length} students</Text>
+              <FlatList
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                data={filters}
+                keyExtractor={(f) => f.value}
+                contentContainerStyle={{ gap: 8, marginBottom: spacing.sm }}
+                renderItem={({ item: f }) => {
+                  const active = filterKind === f.value;
+                  return (
+                    <AnimatedPressable pressScale={0.95} onPress={() => setFilterKind(f.value)} style={{ paddingHorizontal: 13, paddingVertical: 8, borderRadius: radius.pill, backgroundColor: active ? colors.indigo : colors.surface, borderWidth: active ? 0 : 1, borderColor: colors.border }}>
+                      <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 12, color: active ? colors.white : colors.ink }}>{f.label}</Text>
+                    </AnimatedPressable>
+                  );
+                }}
+              />
+
+              <Text style={{ ...type.caption, color: colors.inkMuted, marginBottom: spacing.sm }}>Showing {filtered.length} of {students.length} students</Text>
+            </View>
           </View>
         }
-        renderItem={({ item: student }) => (
-          <TouchableOpacity
-            onPress={() => setSelectedStudent(student)}
-            activeOpacity={0.85}
-            className="mx-5 mb-3 bg-card rounded-2xl border-2 border-border p-4"
-          >
-            <View className="flex-row gap-3">
-              <View className="w-14 h-14 rounded-xl bg-indigo-500 items-center justify-center overflow-hidden">
-                {student.avatar ? (
-                  <Image source={{ uri: student.avatar }} className="w-full h-full" />
-                ) : (
-                  <Text className="text-white font-bold text-lg">{getInitials(student.name)}</Text>
-                )}
-              </View>
-              <View className="flex-1">
-                <View className="flex-row items-center flex-wrap gap-1.5 mb-1.5">
-                  <Text className="font-bold text-foreground text-sm" numberOfLines={1}>{student.name}</Text>
-                  <View className="bg-blue-100 px-2 py-0.5 rounded-full">
-                    <Text className="text-[9px] font-bold text-blue-700">STUDENT</Text>
+        renderItem={({ item: student, index }) => {
+          const [gradFrom, gradTo] = gradientForName(student.name || "?");
+          const isNew = isNewThisWeek(student.createdAt);
+          return (
+            <Animated.View entering={FadeInDown.duration(280).delay(Math.min(index, 10) * 35)}>
+              <AnimatedPressable
+                onPress={() => setSelectedStudent(student)}
+                pressScale={0.98}
+                style={{ marginHorizontal: 20, marginBottom: 12, backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, padding: spacing.lg }}
+              >
+                <View style={{ flexDirection: "row", gap: 12 }}>
+                  <View>
+                    <LinearGradient colors={[gradFrom, gradTo]} style={{ width: 52, height: 52, borderRadius: radius.md, alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+                      {student.avatar ? (
+                        <Image source={{ uri: student.avatar }} style={{ width: "100%", height: "100%" }} />
+                      ) : (
+                        <Text style={{ color: colors.white, fontFamily: fonts.bodySemibold, fontSize: 16 }}>{getInitials(student.name)}</Text>
+                      )}
+                    </LinearGradient>
+                    {student.isActive && (
+                      <View style={{ position: "absolute", bottom: -2, right: -2, width: 14, height: 14, borderRadius: 7, backgroundColor: colors.mint, borderWidth: 2, borderColor: colors.surface }} />
+                    )}
                   </View>
-                  {student.isActive && (
-                    <View className="bg-green-100 px-2 py-0.5 rounded-full">
-                      <Text className="text-[9px] font-bold text-green-700">Active</Text>
+                  <View style={{ flex: 1 }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 6, marginBottom: 4 }}>
+                      <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 14, color: colors.ink }} numberOfLines={1}>{student.name}</Text>
+                      {isNew && (
+                        <Animated.View entering={ZoomIn.duration(300)} style={{ flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: colors.goldTint, paddingHorizontal: 7, paddingVertical: 2, borderRadius: radius.pill }}>
+                          <Sparkles size={9} color={colors.gold} />
+                          <Text style={{ fontSize: 9, fontFamily: fonts.bodySemibold, color: colors.gold }}>New</Text>
+                        </Animated.View>
+                      )}
+                      {student.isActive && <Badge label="Active" tone="success" />}
                     </View>
-                  )}
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 5, marginBottom: 3 }}>
+                      <Mail size={11} color={colors.inkFaint} />
+                      <Text style={{ fontFamily: fonts.body, fontSize: 11.5, color: colors.inkMuted, flex: 1 }} numberOfLines={1}>{student.email}</Text>
+                    </View>
+                    <Text style={{ fontFamily: fonts.body, fontSize: 10.5, color: colors.inkFaint }}>Joined {formatDate(student.createdAt)}</Text>
+                  </View>
+                  <View style={{ justifyContent: "center" }}>
+                    <View style={{ backgroundColor: colors.indigoTint, paddingHorizontal: 11, paddingVertical: 8, borderRadius: radius.sm }}>
+                      <Text style={{ color: colors.indigo, fontSize: 10.5, fontFamily: fonts.bodySemibold }}>Profile</Text>
+                    </View>
+                  </View>
                 </View>
-                <View className="flex-row items-center gap-1 mb-1">
-                  <Mail size={11} color="#6366f1" />
-                  <Text className="text-[11px] text-muted-foreground" numberOfLines={1}>{student.email}</Text>
-                </View>
-                <Text className="text-[10px] text-muted-foreground">Joined {formatDate(student.createdAt)}</Text>
-              </View>
-              <View className="justify-center">
-                <View className="bg-indigo-600 px-3 py-2 rounded-xl">
-                  <Text className="text-white text-[10px] font-bold">View Profile</Text>
-                </View>
-              </View>
-            </View>
-          </TouchableOpacity>
-        )}
-        contentContainerStyle={{ paddingBottom: 24 }}
+              </AnimatedPressable>
+            </Animated.View>
+          );
+        }}
+        contentContainerStyle={{ paddingBottom: 24, paddingTop: 4 }}
         ListEmptyComponent={
-          <View className="items-center py-16 px-5">
-            <Users size={48} color="#9ca3af" />
-            <Text className="text-foreground font-bold text-base mt-3">No Students Found</Text>
-            <Text className="text-muted-foreground text-sm text-center mt-1">
+          <View style={{ alignItems: "center", paddingVertical: 64, paddingHorizontal: 20 }}>
+            <View style={{ width: 76, height: 76, borderRadius: 38, backgroundColor: colors.indigoTint, alignItems: "center", justifyContent: "center", marginBottom: spacing.lg }}>
+              <Users size={32} color={colors.indigo} />
+            </View>
+            <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 15, color: colors.ink }}>No students found</Text>
+            <Text style={{ fontFamily: fonts.body, fontSize: 13, color: colors.inkMuted, textAlign: "center", marginTop: 4 }}>
               {searchQuery ? "Try adjusting your search" : "No students have enrolled yet"}
             </Text>
           </View>
         }
       />
 
-      <Modal visible={!!selectedStudent} transparent animationType="slide" onRequestClose={() => setSelectedStudent(null)}>
-        <View className="flex-1 bg-black/70 justify-end">
-          <View className="bg-background rounded-t-3xl" style={{ maxHeight: "85%" }}>
-            {selectedStudent && (
-              <>
-                <View className="flex-row items-center gap-3 p-5 border-b border-border">
-                  <View className="w-14 h-14 rounded-xl bg-indigo-500 items-center justify-center overflow-hidden">
-                    {selectedStudent.avatar ? (
-                      <Image source={{ uri: selectedStudent.avatar }} className="w-full h-full" />
-                    ) : (
-                      <Text className="text-white font-bold text-lg">{getInitials(selectedStudent.name)}</Text>
-                    )}
-                  </View>
-                  <View className="flex-1">
-                    <Text className="font-bold text-foreground text-base" numberOfLines={1}>{selectedStudent.name}</Text>
-                    <Text className="text-xs text-muted-foreground" numberOfLines={1}>{selectedStudent.email}</Text>
-                  </View>
-                  <TouchableOpacity onPress={() => setSelectedStudent(null)}>
-                    <X size={22} color="#9ca3af" />
-                  </TouchableOpacity>
-                </View>
-
-                <ScrollView contentContainerStyle={{ padding: 20 }}>
-                  <View className="flex-row items-center gap-2 mb-4">
-                    <Users size={16} color="#6366f1" />
-                    <Text className="font-bold text-foreground text-sm">Personal Information</Text>
-                  </View>
-                  <View className="gap-3 mb-4">
-                    {selectedStudent.phone && (
-                      <View className="flex-row items-center gap-3 bg-secondary rounded-xl p-3">
-                        <Phone size={16} color="#9ca3af" />
-                        <View>
-                          <Text className="text-xs text-muted-foreground">Phone</Text>
-                          <Text className="text-sm font-semibold text-foreground">{selectedStudent.phone}</Text>
-                        </View>
-                      </View>
-                    )}
-                    {selectedStudent.location && (
-                      <View className="flex-row items-center gap-3 bg-secondary rounded-xl p-3">
-                        <MapPin size={16} color="#9ca3af" />
-                        <View>
-                          <Text className="text-xs text-muted-foreground">Location</Text>
-                          <Text className="text-sm font-semibold text-foreground">{selectedStudent.location}</Text>
-                        </View>
-                      </View>
-                    )}
-                    {selectedStudent.dateOfBirth && (
-                      <View className="flex-row items-center gap-3 bg-secondary rounded-xl p-3">
-                        <Calendar size={16} color="#9ca3af" />
-                        <View>
-                          <Text className="text-xs text-muted-foreground">Date of Birth</Text>
-                          <Text className="text-sm font-semibold text-foreground">
-                            {formatDate(selectedStudent.dateOfBirth)} (Age: {calculateAge(selectedStudent.dateOfBirth)})
-                          </Text>
-                        </View>
-                      </View>
-                    )}
-                    <View className="flex-row items-center gap-3 bg-secondary rounded-xl p-3">
-                      <Calendar size={16} color="#9ca3af" />
-                      <View>
-                        <Text className="text-xs text-muted-foreground">Member Since</Text>
-                        <Text className="text-sm font-semibold text-foreground">{formatDate(selectedStudent.createdAt)}</Text>
-                      </View>
-                    </View>
-                  </View>
-                  {selectedStudent.bio && (
-                    <View>
-                      <Text className="text-xs text-muted-foreground mb-1">Bio</Text>
-                      <Text className="text-sm text-foreground">{selectedStudent.bio}</Text>
-                    </View>
-                  )}
-                </ScrollView>
-              </>
-            )}
-          </View>
-        </View>
-      </Modal>
+      <StudentProfileSheet student={selectedStudent} onClose={() => setSelectedStudent(null)} />
     </SafeAreaView>
+  );
+}
+
+function InfoTile({ icon: Icon, label, value }: { icon: typeof Phone; label: string; value: string }) {
+  return (
+    <View style={{ flex: 1, minWidth: "45%", backgroundColor: colors.surfaceMuted, borderRadius: radius.md, padding: spacing.md }}>
+      <Icon size={15} color={colors.indigo} style={{ marginBottom: 6 }} />
+      <Text style={{ fontFamily: fonts.body, fontSize: 10, color: colors.inkFaint, marginBottom: 2 }}>{label}</Text>
+      <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 12.5, color: colors.ink }} numberOfLines={2}>{value}</Text>
+    </View>
+  );
+}
+
+function StudentProfileSheet({ student, onClose }: { student: DirectoryUser | null; onClose: () => void }) {
+  if (!student) return null;
+  const [gradFrom, gradTo] = gradientForName(student.name || "?");
+  const age = calculateAge(student.dateOfBirth);
+
+  return (
+    <Modal visible={!!student} transparent animationType="fade" onRequestClose={onClose}>
+      <Animated.View entering={FadeIn.duration(200)} style={{ flex: 1, backgroundColor: "rgba(23,25,35,0.6)", justifyContent: "flex-end" }}>
+        <Animated.View entering={SlideInDown.duration(280).springify().damping(18)} style={{ backgroundColor: colors.paper, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, maxHeight: "85%" }}>
+          <View style={{ alignItems: "center", paddingTop: 10 }}>
+            <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: colors.border }} />
+          </View>
+
+          <LinearGradient colors={[gradFrom, gradTo]} style={{ margin: spacing.lg, borderRadius: radius.lg, padding: spacing.lg }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+              <View style={{ width: 60, height: 60, borderRadius: radius.md, backgroundColor: "rgba(255,255,255,0.2)", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+                {student.avatar ? (
+                  <Image source={{ uri: student.avatar }} style={{ width: "100%", height: "100%" }} />
+                ) : (
+                  <Text style={{ color: colors.white, fontFamily: fonts.bodySemibold, fontSize: 20 }}>{getInitials(student.name)}</Text>
+                )}
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 16, color: colors.white }} numberOfLines={1}>{student.name}</Text>
+                <Text style={{ fontFamily: fonts.body, fontSize: 12, color: "rgba(255,255,255,0.75)" }} numberOfLines={1}>{student.email}</Text>
+              </View>
+              <AnimatedPressable pressScale={0.9} onPress={onClose} style={{ width: 30, height: 30, alignItems: "center", justifyContent: "center" }}>
+                <X size={18} color={colors.white} />
+              </AnimatedPressable>
+            </View>
+          </LinearGradient>
+
+          <ScrollView contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingBottom: spacing.xl }} showsVerticalScrollIndicator={false}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: spacing.md }}>
+              <UserCheck size={16} color={colors.indigo} />
+              <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 13.5, color: colors.ink }}>Personal Information</Text>
+            </View>
+
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginBottom: spacing.lg }}>
+              {student.phone && <InfoTile icon={Phone} label="Phone" value={student.phone} />}
+              {student.location && <InfoTile icon={MapPin} label="Location" value={student.location} />}
+              {student.dateOfBirth && <InfoTile icon={Calendar} label="Date of Birth" value={`${formatDate(student.dateOfBirth)}${age !== null ? ` (${age}y)` : ""}`} />}
+              <InfoTile icon={Calendar} label="Member Since" value={formatDate(student.createdAt)} />
+            </View>
+
+            {student.bio ? (
+              <View>
+                <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 12, color: colors.inkMuted, marginBottom: 6 }}>Bio</Text>
+                <Text style={{ ...type.body, fontSize: 13, color: colors.ink, lineHeight: 19 }}>{student.bio}</Text>
+              </View>
+            ) : null}
+          </ScrollView>
+        </Animated.View>
+      </Animated.View>
+    </Modal>
   );
 }

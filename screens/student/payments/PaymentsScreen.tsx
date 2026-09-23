@@ -1,12 +1,12 @@
 import { useState, useEffect, useMemo } from "react";
 import {
-  View, Text, TextInput, TouchableOpacity, FlatList, ScrollView,
-  ActivityIndicator,  Alert, Image
+  View, Text, TextInput, FlatList, ScrollView, ActivityIndicator, Alert, Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import Animated, { FadeInDown } from "react-native-reanimated";
 import {
   ArrowLeft, GraduationCap, Printer, Wallet, Search, Tag, X,
-  Check, ArrowRight, Lock, ChevronDown, FileText, Truck,
+  Check, ArrowRight, Lock, ChevronDown, FileText, Truck, AlertTriangle,
 } from "lucide-react-native";
 import { useNavigation } from "@react-navigation/native";
 import api from "@/lib/api";
@@ -16,6 +16,12 @@ import PaymentMethodModal from "@/components/payment/PaymentMethodModal";
 import OrderSummaryModal from "@/components/payment/OrderSummaryModal";
 import QRPaymentModal from "@/components/payment/QRPaymentModal";
 import TrackOrderModal from "@/components/payment/TrackOrderModal";
+import Card from "@/components/ui/Card";
+import Badge from "@/components/ui/Badge";
+import Button from "@/components/ui/Button";
+import Input from "@/components/ui/Input";
+import AnimatedPressable from "@/components/ui/AnimatedPressable";
+import { colors, fonts, radius, spacing } from "@/constants/theme";
 
 const MIN_ORDER = 200;
 
@@ -52,7 +58,7 @@ export default function PaymentsScreen() {
   const [selectedMethod, setSelectedMethod] = useState<"qr" | "cod" | null>(null);
   const [orderPlaced, setOrderPlaced] = useState<PaymentOrderFull | null>(null);
   const [placingOrder, setPlacingOrder] = useState(false);
-  
+
   useEffect(() => {
     api.get("/api/payments?action=fee-plans").then(({ data }) => {
       if (data.success) {
@@ -155,7 +161,7 @@ export default function PaymentsScreen() {
         address: hasHardcopy ? address : null,
         paymentMethod: selectedMethod,
         userEmail: currentUser?.email,
-        });
+      });
       if (!data.success) throw new Error(data.error);
       setOrderPlaced(data.order);
       setShowSummaryModal(false);
@@ -172,59 +178,63 @@ export default function PaymentsScreen() {
     }
   };
 
+  const tabs = [
+    { id: "fees" as const, label: "Fees", icon: GraduationCap },
+    { id: "hardcopy" as const, label: "Notes", icon: Printer },
+    { id: "cart" as const, label: cartItems.length > 0 ? `Cart (${cartItems.length})` : "Checkout", icon: Wallet },
+  ];
+
   return (
-    <SafeAreaView className="flex-1 bg-background">
-      <View className="flex-row items-center justify-between px-5 pt-2 pb-3 border-b border-border">
-        <View className="flex-row items-center gap-3">
-          <TouchableOpacity onPress={() => navigation.goBack()} className="w-9 h-9 bg-secondary rounded-lg items-center justify-center">
-            <ArrowLeft size={18} color="#374151" />
-          </TouchableOpacity>
-          <Text className="font-bold text-foreground text-base">Fees & Payments</Text>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.paper }} edges={["top"]}>
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingTop: 8, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+          <AnimatedPressable pressScale={0.9} onPress={() => navigation.goBack()} style={{ width: 36, height: 36, borderRadius: radius.sm, backgroundColor: colors.surfaceMuted, alignItems: "center", justifyContent: "center" }}>
+            <ArrowLeft size={18} color={colors.ink} />
+          </AnimatedPressable>
+          <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 15, color: colors.ink }}>Fees & Payments</Text>
         </View>
-        <View className="flex-row items-center gap-2">
-          <TouchableOpacity
-            onPress={() => setShowTrackModal(true)}
-            className="flex-row items-center gap-1 px-3 py-2 border-2 border-border rounded-xl"
-          >
-            <Truck size={14} color="#6b7280" />
-            <Text className="text-xs font-semibold text-foreground">Track</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          <AnimatedPressable pressScale={0.92} onPress={() => setShowTrackModal(true)} style={{ flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 11, paddingVertical: 8, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.border }}>
+            <Truck size={13} color={colors.inkMuted} />
+            <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 11.5, color: colors.ink }}>Track</Text>
+          </AnimatedPressable>
+          <AnimatedPressable
+            pressScale={0.92}
             onPress={() => setTab("cart")}
-            className={`flex-row items-center gap-1.5 px-3 py-2 rounded-xl ${tab === "cart" ? "bg-violet-600" : "border-2 border-border"}`}
+            style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 11, paddingVertical: 8, borderRadius: radius.md, backgroundColor: tab === "cart" ? colors.indigo : colors.surface, borderWidth: tab === "cart" ? 0 : 1.5, borderColor: colors.border }}
           >
-            <Wallet size={14} color={tab === "cart" ? "#fff" : "#6b7280"} />
+            <Wallet size={14} color={tab === "cart" ? colors.white : colors.inkMuted} />
             {cartItems.length > 0 && (
-              <View className="bg-red-500 rounded-full px-1.5">
-                <Text className="text-white text-[10px] font-bold">{cartItems.length}</Text>
+              <View style={{ backgroundColor: colors.coral, borderRadius: radius.pill, paddingHorizontal: 6, minWidth: 18, alignItems: "center" }}>
+                <Text style={{ color: colors.white, fontFamily: fonts.bodySemibold, fontSize: 10 }}>{cartItems.length}</Text>
               </View>
             )}
-          </TouchableOpacity>
+          </AnimatedPressable>
         </View>
       </View>
 
-      <View className="flex-row border-b border-border px-2">
-        {([
-          { id: "fees" as const, label: "Fees", icon: GraduationCap },
-          { id: "hardcopy" as const, label: "Notes", icon: Printer },
-          { id: "cart" as const, label: cartItems.length > 0 ? `Cart (${cartItems.length})` : "Checkout", icon: Wallet },
-        ]).map(({ id, label, icon: Icon }) => (
-          <TouchableOpacity
-            key={id}
-            onPress={() => setTab(id)}
-            className="flex-1 items-center py-3 flex-row justify-center gap-1.5"
-            style={{ borderBottomWidth: 2, borderBottomColor: tab === id ? "#7c3aed" : "transparent" }}
-          >
-            <Icon size={14} color={tab === id ? "#7c3aed" : "#9ca3af"} />
-            <Text className="text-xs font-bold" style={{ color: tab === id ? "#7c3aed" : "#9ca3af" }}>{label}</Text>
-          </TouchableOpacity>
-        ))}
+      <View style={{ flexDirection: "row", paddingHorizontal: 8, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+        {tabs.map(({ id, label, icon: Icon }) => {
+          const active = tab === id;
+          return (
+            <AnimatedPressable
+              key={id}
+              pressScale={0.97}
+              onPress={() => setTab(id)}
+              style={{ flex: 1, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 6, paddingVertical: 13, borderBottomWidth: 2, borderBottomColor: active ? colors.indigo : "transparent" }}
+            >
+              <Icon size={14} color={active ? colors.indigo : colors.inkFaint} />
+              <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 12, color: active ? colors.indigo : colors.inkFaint }}>{label}</Text>
+            </AnimatedPressable>
+          );
+        })}
       </View>
 
       {cartItems.length > 0 && !meetsMinOrder && (
-        <View className="mx-5 mt-3 p-3 bg-amber-50 border-2 border-amber-200 rounded-xl">
-          <Text className="text-xs text-amber-700 font-medium">
-            ⚠️ Minimum order ₹{MIN_ORDER}. Add ₹{MIN_ORDER - total} more to proceed.
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 20, marginTop: 12, padding: spacing.md, backgroundColor: colors.goldTint, borderRadius: radius.md, borderWidth: 1, borderColor: `${colors.gold}40` }}>
+          <AlertTriangle size={14} color={colors.gold} />
+          <Text style={{ fontFamily: fonts.bodyMedium, fontSize: 12, color: "#8A6816", flex: 1 }}>
+            Minimum order ₹{MIN_ORDER}. Add ₹{MIN_ORDER - total} more to proceed.
           </Text>
         </View>
       )}
@@ -234,78 +244,74 @@ export default function PaymentsScreen() {
           data={plansForClass}
           keyExtractor={(p) => p.id}
           ListHeaderComponent={
-            <View className="px-5 pt-4">
-              <Text className="font-bold text-foreground text-base mb-3">Select Your Class</Text>
+            <View style={{ paddingHorizontal: 20, paddingTop: 16 }}>
+              <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 14, color: colors.ink, marginBottom: spacing.md }}>Select Your Class</Text>
               {plansLoading ? (
-                <ActivityIndicator color="#7c3aed" />
+                <ActivityIndicator color={colors.indigo} />
               ) : (
                 <FlatList
                   horizontal
                   showsHorizontalScrollIndicator={false}
                   data={classes}
                   keyExtractor={(c) => c}
-                  contentContainerStyle={{ gap: 8, marginBottom: 16 }}
-                  renderItem={({ item: cls }) => (
-                    <TouchableOpacity
-                      onPress={() => setSelectedClass(cls)}
-                      className={`px-4 py-2.5 rounded-2xl ${selectedClass === cls ? "bg-violet-600" : "bg-card border-2 border-border"}`}
-                    >
-                      <Text className={`text-xs font-bold ${selectedClass === cls ? "text-white" : "text-foreground"}`}>{cls}</Text>
-                    </TouchableOpacity>
-                  )}
+                  contentContainerStyle={{ gap: 8, marginBottom: spacing.lg }}
+                  renderItem={({ item: cls }) => {
+                    const active = selectedClass === cls;
+                    return (
+                      <AnimatedPressable pressScale={0.94} onPress={() => setSelectedClass(cls)} style={{ paddingHorizontal: 16, paddingVertical: 10, borderRadius: radius.lg, backgroundColor: active ? colors.indigo : colors.surface, borderWidth: active ? 0 : 1.5, borderColor: colors.border }}>
+                        <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 12.5, color: active ? colors.white : colors.ink }}>{cls}</Text>
+                      </AnimatedPressable>
+                    );
+                  }}
                 />
               )}
-              {selectedClass ? <Text className="font-bold text-foreground text-sm mb-3">Plans for {selectedClass}</Text> : null}
+              {selectedClass ? <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 13, color: colors.ink, marginBottom: spacing.md }}>Plans for {selectedClass}</Text> : null}
             </View>
           }
-          renderItem={({ item: plan }) => {
+          renderItem={({ item: plan, index }) => {
             const isSelected = !!selectedPlans[plan.id];
             const save = plan.originalPrice - plan.price;
             const pct = Math.round((save / plan.originalPrice) * 100);
             return (
-              <TouchableOpacity
-                onPress={() => setSelectedPlans((p) => ({ ...p, [plan.id]: !p[plan.id] }))}
-                className="mx-5 mb-3 bg-card rounded-2xl border-2 p-4"
-                style={{ borderColor: isSelected ? "#7c3aed" : "#e5e7eb" }}
-              >
-                {plan.popular && (
-                  <View className="absolute top-3 right-3 bg-violet-600 px-2 py-0.5 rounded-lg">
-                    <Text className="text-white text-[9px] font-bold">★ Popular</Text>
-                  </View>
-                )}
-                <View className="flex-row items-center gap-2.5 mb-3">
-                  <View className="w-9 h-9 bg-violet-100 rounded-xl items-center justify-center">
-                    <GraduationCap size={16} color="#7c3aed" />
-                  </View>
-                  <View>
-                    <Text className="font-bold text-foreground text-sm">{plan.subject}</Text>
-                    <Text className="text-xs text-muted-foreground">{plan.duration}</Text>
-                  </View>
-                </View>
-                <View className="flex-row items-baseline gap-2 mb-1">
-                  <Text className="text-xl font-bold text-foreground">₹{plan.price.toLocaleString("en-IN")}</Text>
-                  <Text className="text-xs text-muted-foreground line-through">₹{plan.originalPrice.toLocaleString("en-IN")}</Text>
-                </View>
-                <View className="flex-row items-center gap-2 mb-3">
-                  <View className="bg-emerald-100 px-1.5 py-0.5 rounded">
-                    <Text className="text-[10px] font-bold text-emerald-700">{pct}% OFF</Text>
-                  </View>
-                  <Text className="text-[10px] text-muted-foreground">Save ₹{save.toLocaleString("en-IN")}</Text>
-                </View>
-                <View className={`py-2 rounded-xl items-center ${isSelected ? "bg-violet-600" : "bg-secondary"}`}>
-                  {isSelected ? (
-                    <View className="flex-row items-center gap-1.5">
-                      <Check size={14} color="#fff" />
-                      <Text className="text-white text-xs font-bold">Selected</Text>
-                    </View>
-                  ) : (
-                    <View className="flex-row items-center gap-1.5">
-                      <Text className="text-foreground text-xs font-bold">Select</Text>
-                      <ArrowRight size={14} color="#374151" />
+              <Animated.View entering={FadeInDown.duration(300).delay(Math.min(index, 6) * 40)} style={{ marginHorizontal: 20, marginBottom: 12 }}>
+                <Card onPress={() => setSelectedPlans((p) => ({ ...p, [plan.id]: !p[plan.id] }))} padding="md" style={isSelected ? { borderColor: colors.indigo, borderWidth: 1.5 } : undefined}>
+                  {plan.popular && (
+                    <View style={{ position: "absolute", top: 12, right: 12 }}>
+                      <Badge label="★ Popular" tone="gold" />
                     </View>
                   )}
-                </View>
-              </TouchableOpacity>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: spacing.md }}>
+                    <View style={{ width: 38, height: 38, borderRadius: radius.md, backgroundColor: colors.indigoTint, alignItems: "center", justifyContent: "center" }}>
+                      <GraduationCap size={17} color={colors.indigo} />
+                    </View>
+                    <View>
+                      <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 14, color: colors.ink }}>{plan.subject}</Text>
+                      <Text style={{ fontFamily: fonts.body, fontSize: 11.5, color: colors.inkMuted }}>{plan.duration}</Text>
+                    </View>
+                  </View>
+                  <View style={{ flexDirection: "row", alignItems: "baseline", gap: 8, marginBottom: 6 }}>
+                    <Text style={{ fontFamily: fonts.displayBold, fontSize: 20, color: colors.ink }}>₹{plan.price.toLocaleString("en-IN")}</Text>
+                    <Text style={{ fontFamily: fonts.body, fontSize: 12, color: colors.inkFaint, textDecorationLine: "line-through" }}>₹{plan.originalPrice.toLocaleString("en-IN")}</Text>
+                  </View>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: spacing.md }}>
+                    <Badge label={`${pct}% OFF`} tone="success" />
+                    <Text style={{ fontFamily: fonts.body, fontSize: 10.5, color: colors.inkFaint }}>Save ₹{save.toLocaleString("en-IN")}</Text>
+                  </View>
+                  <View style={{ paddingVertical: 10, borderRadius: radius.sm, alignItems: "center", backgroundColor: isSelected ? colors.indigo : colors.surfaceMuted }}>
+                    {isSelected ? (
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                        <Check size={14} color={colors.white} />
+                        <Text style={{ color: colors.white, fontFamily: fonts.bodySemibold, fontSize: 12 }}>Selected</Text>
+                      </View>
+                    ) : (
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                        <Text style={{ color: colors.ink, fontFamily: fonts.bodySemibold, fontSize: 12 }}>Select</Text>
+                        <ArrowRight size={14} color={colors.ink} />
+                      </View>
+                    )}
+                  </View>
+                </Card>
+              </Animated.View>
             );
           }}
           contentContainerStyle={{ paddingBottom: 24 }}
@@ -317,236 +323,197 @@ export default function PaymentsScreen() {
           data={filteredNotes}
           keyExtractor={(n) => n.id}
           ListHeaderComponent={
-            <View className="px-5 pt-4">
-              <View className="flex-row items-center gap-3 p-3.5 bg-amber-50 border-2 border-amber-200 rounded-xl mb-4">
-                <View className="w-9 h-9 bg-amber-500 rounded-xl items-center justify-center">
-                  <Printer size={16} color="#fff" />
+            <View style={{ paddingHorizontal: 20, paddingTop: 16 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 12, padding: spacing.md, backgroundColor: colors.goldTint, borderRadius: radius.md, borderWidth: 1, borderColor: `${colors.gold}40`, marginBottom: spacing.lg }}>
+                <View style={{ width: 36, height: 36, borderRadius: radius.sm, backgroundColor: colors.gold, alignItems: "center", justifyContent: "center" }}>
+                  <Printer size={16} color={colors.white} />
                 </View>
-                <View className="flex-1">
-                  <Text className="font-bold text-xs text-amber-800">Order Printed Notes</Text>
-                  <Text className="text-[10px] text-amber-700">Free delivery · 3–5 days</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 12, color: "#8A6816" }}>Order Printed Notes</Text>
+                  <Text style={{ fontFamily: fonts.body, fontSize: 10.5, color: "#8A6816" }}>Free delivery · 3–5 days</Text>
                 </View>
               </View>
-              <View className="flex-row items-center border-2 border-border rounded-xl px-3 mb-4 bg-card">
-                <Search size={16} color="#9ca3af" />
-                <TextInput
-                  value={noteSearch}
-                  onChangeText={setNoteSearch}
-                  placeholder="Search notes…"
-                  className="flex-1 py-2.5 px-2 text-foreground text-sm"
-                />
-              </View>
+              <Input
+                value={noteSearch}
+                onChangeText={setNoteSearch}
+                placeholder="Search notes…"
+                leftIcon={<Search size={16} color={colors.inkFaint} />}
+              />
+              <View style={{ height: spacing.sm }} />
             </View>
           }
-          renderItem={({ item: note }) => {
+          renderItem={({ item: note, index }) => {
             const qty = hardcopyQty[note.id] || 0;
             const unitPrice = note.price || 30;
             return (
-              <View className="mx-5 mb-3 bg-card rounded-2xl border-2 border-border p-4 flex-row items-center gap-3">
-                <View className="w-14 h-14 bg-secondary rounded-xl items-center justify-center overflow-hidden">
-                    {note.thumbnailUrl ? (
-                        <Image source={{ uri: note.thumbnailUrl }} className="w-full h-full" resizeMode="cover" />
-                    ) : (
-                        <FileText size={20} color="#9ca3af" />
-                    )}
+              <Animated.View entering={FadeInDown.duration(300).delay(Math.min(index, 6) * 40)} style={{ marginHorizontal: 20, marginBottom: 12 }}>
+                <Card padding="md">
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                    <View style={{ width: 52, height: 52, borderRadius: radius.md, backgroundColor: colors.surfaceMuted, alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+                      {note.thumbnailUrl ? (
+                        <Image source={{ uri: note.thumbnailUrl }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
+                      ) : (
+                        <FileText size={20} color={colors.inkFaint} />
+                      )}
                     </View>
-                <View className="flex-1">
-                  <Text className="font-bold text-foreground text-sm mb-0.5" numberOfLines={2}>{note.title}</Text>
-                  <Text className="text-xs text-muted-foreground">{note.subject} · {note.class}</Text>
-                  <Text className="font-bold text-foreground text-sm mt-1">₹{unitPrice}<Text className="text-xs font-normal">/copy</Text></Text>
-                </View>
-                {qty === 0 ? (
-                  <TouchableOpacity
-                    onPress={() => setHardcopyQty((p) => ({ ...p, [note.id]: 1 }))}
-                    className="bg-violet-600 rounded-xl px-3 py-2"
-                  >
-                    <Text className="text-white text-xs font-bold">Add</Text>
-                  </TouchableOpacity>
-                ) : (
-                  <View className="flex-row items-center gap-2">
-                    <TouchableOpacity
-                      onPress={() => setHardcopyQty((p) => {
-                        const next = { ...p };
-                        if (next[note.id] <= 1) delete next[note.id];
-                        else next[note.id]--;
-                        return next;
-                      })}
-                      className="w-7 h-7 bg-secondary rounded-lg items-center justify-center"
-                    >
-                      <Text className="font-bold text-foreground">−</Text>
-                    </TouchableOpacity>
-                    <Text className="font-bold text-foreground text-sm w-5 text-center">{qty}</Text>
-                    <TouchableOpacity
-                      onPress={() => setHardcopyQty((p) => ({ ...p, [note.id]: (p[note.id] || 0) + 1 }))}
-                      className="w-7 h-7 bg-violet-600 rounded-lg items-center justify-center"
-                    >
-                      <Text className="font-bold text-white">+</Text>
-                    </TouchableOpacity>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 13, color: colors.ink, marginBottom: 2 }} numberOfLines={2}>{note.title}</Text>
+                      <Text style={{ fontFamily: fonts.body, fontSize: 11.5, color: colors.inkMuted }}>{note.subject} · {note.class}</Text>
+                      <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 13, color: colors.ink, marginTop: 4 }}>
+                        ₹{unitPrice}<Text style={{ fontFamily: fonts.body, fontSize: 11 }}>/copy</Text>
+                      </Text>
+                    </View>
+                    {qty === 0 ? (
+                      <AnimatedPressable pressScale={0.93} onPress={() => setHardcopyQty((p) => ({ ...p, [note.id]: 1 }))} style={{ backgroundColor: colors.indigo, borderRadius: radius.sm, paddingHorizontal: 14, paddingVertical: 9 }}>
+                        <Text style={{ color: colors.white, fontFamily: fonts.bodySemibold, fontSize: 12 }}>Add</Text>
+                      </AnimatedPressable>
+                    ) : (
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                        <AnimatedPressable
+                          pressScale={0.9}
+                          onPress={() => setHardcopyQty((p) => {
+                            const next = { ...p };
+                            if (next[note.id] <= 1) delete next[note.id];
+                            else next[note.id]--;
+                            return next;
+                          })}
+                          style={{ width: 28, height: 28, borderRadius: radius.sm, backgroundColor: colors.surfaceMuted, alignItems: "center", justifyContent: "center" }}
+                        >
+                          <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 15, color: colors.ink }}>−</Text>
+                        </AnimatedPressable>
+                        <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 13, color: colors.ink, width: 20, textAlign: "center" }}>{qty}</Text>
+                        <AnimatedPressable pressScale={0.9} onPress={() => setHardcopyQty((p) => ({ ...p, [note.id]: (p[note.id] || 0) + 1 }))} style={{ width: 28, height: 28, borderRadius: radius.sm, backgroundColor: colors.indigo, alignItems: "center", justifyContent: "center" }}>
+                          <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 15, color: colors.white }}>+</Text>
+                        </AnimatedPressable>
+                      </View>
+                    )}
                   </View>
-                )}
-              </View>
+                </Card>
+              </Animated.View>
             );
           }}
           contentContainerStyle={{ paddingBottom: 24 }}
           ListEmptyComponent={
             notesLoading ? (
-              <ActivityIndicator className="mt-10" color="#7c3aed" />
+              <ActivityIndicator style={{ marginTop: 40 }} color={colors.indigo} />
             ) : (
-              <Text className="text-center text-muted-foreground mt-10">No notes found</Text>
+              <Text style={{ textAlign: "center", fontFamily: fonts.body, fontSize: 13, color: colors.inkMuted, marginTop: 40 }}>No notes found</Text>
             )
           }
         />
       )}
 
       {tab === "cart" && (
-        <ScrollView contentContainerStyle={{ padding: 20 }}>
-          <View className="bg-card rounded-2xl border-2 border-border overflow-hidden mb-4">
-            <View className="p-3.5 border-b border-border bg-secondary">
-              <Text className="font-bold text-sm text-foreground">Cart ({cartItems.length} items)</Text>
+        <ScrollView contentContainerStyle={{ padding: 20 }} showsVerticalScrollIndicator={false}>
+          <Card padding={0} style={{ overflow: "hidden", marginBottom: spacing.lg }}>
+            <View style={{ padding: spacing.md, backgroundColor: colors.surfaceMuted, borderBottomWidth: cartItems.length ? 1 : 0, borderBottomColor: colors.border }}>
+              <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 13, color: colors.ink }}>Cart ({cartItems.length} items)</Text>
             </View>
             {cartItems.length === 0 ? (
-              <View className="p-8 items-center">
-                <Text className="text-sm text-muted-foreground mb-3">Your cart is empty</Text>
-                <TouchableOpacity onPress={() => setTab("fees")} className="bg-violet-600 px-4 py-2 rounded-xl">
-                  <Text className="text-white text-xs font-bold">Browse Plans</Text>
-                </TouchableOpacity>
+              <View style={{ padding: 32, alignItems: "center" }}>
+                <Text style={{ fontFamily: fonts.body, fontSize: 13, color: colors.inkMuted, marginBottom: spacing.md }}>Your cart is empty</Text>
+                <Button label="Browse Plans" onPress={() => setTab("fees")} size="sm" />
               </View>
             ) : (
               cartItems.map((item) => (
-                <View key={item.id} className="flex-row justify-between p-3.5 border-b border-border">
-                  <View className="flex-1 pr-2">
-                    <Text className="text-sm text-foreground">{item.name}{item.qty ? ` × ${item.qty}` : ""}</Text>
+                <View key={item.id} style={{ flexDirection: "row", justifyContent: "space-between", padding: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+                  <View style={{ flex: 1, paddingRight: 8 }}>
+                    <Text style={{ fontFamily: fonts.body, fontSize: 13, color: colors.ink }}>{item.name}{item.qty ? ` × ${item.qty}` : ""}</Text>
                     {item.qty && item.unitPrice ? (
-                      <Text className="text-xs text-muted-foreground">₹{item.unitPrice} × {item.qty}</Text>
+                      <Text style={{ fontFamily: fonts.body, fontSize: 11, color: colors.inkMuted }}>₹{item.unitPrice} × {item.qty}</Text>
                     ) : null}
                   </View>
-                  <Text className="font-bold text-foreground text-sm">₹{item.price.toLocaleString("en-IN")}</Text>
+                  <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 13, color: colors.ink }}>₹{item.price.toLocaleString("en-IN")}</Text>
                 </View>
               ))
             )}
-          </View>
+          </Card>
 
           {hasHardcopy && cartItems.length > 0 && (
-            <View className="bg-card rounded-2xl border-2 border-border p-4 mb-4">
-              <TouchableOpacity onPress={() => setShowAddress((v) => !v)} className="flex-row justify-between items-center">
-                <Text className="font-bold text-sm text-foreground">
-                  Delivery Address {!showAddress && address.name ? <Text className="text-violet-600 text-xs">✓ Filled</Text> : null}
+            <Card padding="md" style={{ marginBottom: spacing.lg }}>
+              <AnimatedPressable pressScale={0.99} onPress={() => setShowAddress((v) => !v)} style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 13, color: colors.ink }}>
+                  Delivery Address {!showAddress && address.name ? <Text style={{ color: colors.mint, fontSize: 11 }}>✓ Filled</Text> : null}
                 </Text>
-                <ChevronDown size={16} color="#6b7280" style={{ transform: [{ rotate: showAddress ? "180deg" : "0deg" }] }} />
-              </TouchableOpacity>
+                <ChevronDown size={16} color={colors.inkMuted} style={{ transform: [{ rotate: showAddress ? "180deg" : "0deg" }] }} />
+              </AnimatedPressable>
               {showAddress && (
-                <View className="mt-3 gap-2">
-                  <TextInput
-                    value={address.name}
-                    onChangeText={(v) => setAddress((a) => ({ ...a, name: v }))}
-                    placeholder="Full Name"
-                    className="border-2 border-border rounded-xl px-3 py-2.5 text-sm text-foreground"
-                  />
-                  <TextInput
-                    value={address.phone}
-                    onChangeText={(v) => setAddress((a) => ({ ...a, phone: v }))}
-                    placeholder="Phone"
-                    keyboardType="phone-pad"
-                    className="border-2 border-border rounded-xl px-3 py-2.5 text-sm text-foreground"
-                  />
-                  <TextInput
-                    value={address.address}
-                    onChangeText={(v) => setAddress((a) => ({ ...a, address: v }))}
-                    placeholder="Full Address"
-                    className="border-2 border-border rounded-xl px-3 py-2.5 text-sm text-foreground"
-                  />
-                  <View className="flex-row gap-2">
-                    <TextInput
-                      value={address.city}
-                      onChangeText={(v) => setAddress((a) => ({ ...a, city: v }))}
-                      placeholder="City"
-                      className="flex-1 border-2 border-border rounded-xl px-3 py-2.5 text-sm text-foreground"
-                    />
-                    <TextInput
-                      value={address.pincode}
-                      onChangeText={(v) => setAddress((a) => ({ ...a, pincode: v }))}
-                      placeholder="PIN Code"
-                      keyboardType="number-pad"
-                      className="flex-1 border-2 border-border rounded-xl px-3 py-2.5 text-sm text-foreground"
-                    />
+                <View style={{ marginTop: spacing.md, gap: spacing.sm }}>
+                  <PlainField value={address.name} onChangeText={(v) => setAddress((a) => ({ ...a, name: v }))} placeholder="Full Name" />
+                  <PlainField value={address.phone} onChangeText={(v) => setAddress((a) => ({ ...a, phone: v }))} placeholder="Phone" keyboardType="phone-pad" />
+                  <PlainField value={address.address} onChangeText={(v) => setAddress((a) => ({ ...a, address: v }))} placeholder="Full Address" />
+                  <View style={{ flexDirection: "row", gap: spacing.sm }}>
+                    <PlainField value={address.city} onChangeText={(v) => setAddress((a) => ({ ...a, city: v }))} placeholder="City" style={{ flex: 1 }} />
+                    <PlainField value={address.pincode} onChangeText={(v) => setAddress((a) => ({ ...a, pincode: v }))} placeholder="PIN Code" keyboardType="number-pad" style={{ flex: 1 }} />
                   </View>
                 </View>
               )}
-            </View>
+            </Card>
           )}
 
           {cartItems.length > 0 && (
-            <View className="bg-card rounded-2xl border-2 border-border p-4 mb-4">
-              <Text className="font-bold text-sm text-foreground mb-3">🏷️ Coupon Code</Text>
+            <Card padding="md" style={{ marginBottom: spacing.lg }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: spacing.md }}>
+                <Tag size={14} color={colors.indigo} />
+                <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 13, color: colors.ink }}>Coupon Code</Text>
+              </View>
               {appliedCoupon ? (
-                <View className="flex-row items-center justify-between p-3 bg-emerald-50 border-2 border-emerald-300 rounded-xl">
+                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: spacing.md, backgroundColor: colors.mintTint, borderRadius: radius.md, borderWidth: 1, borderColor: `${colors.mint}40` }}>
                   <View>
-                    <Text className="text-emerald-700 font-bold text-sm">{appliedCoupon.code}</Text>
-                    <Text className="text-emerald-600 text-xs">{appliedCoupon.label} · Saved ₹{appliedCoupon.discount}</Text>
+                    <Text style={{ color: colors.mint, fontFamily: fonts.bodySemibold, fontSize: 13 }}>{appliedCoupon.code}</Text>
+                    <Text style={{ color: colors.mint, fontFamily: fonts.body, fontSize: 11 }}>{appliedCoupon.label} · Saved ₹{appliedCoupon.discount}</Text>
                   </View>
-                  <TouchableOpacity onPress={() => { setAppliedCoupon(null); setCouponCode(""); }}>
-                    <X size={16} color="#dc2626" />
-                  </TouchableOpacity>
+                  <AnimatedPressable pressScale={0.85} onPress={() => { setAppliedCoupon(null); setCouponCode(""); }}>
+                    <X size={16} color={colors.coral} />
+                  </AnimatedPressable>
                 </View>
               ) : (
-                <View className="flex-row gap-2">
-                  <TextInput
-                    value={couponCode}
-                    onChangeText={(v) => { setCouponCode(v.toUpperCase()); setCouponError(""); }}
-                    placeholder="Enter code"
-                    autoCapitalize="characters"
-                    className="flex-1 border-2 border-border rounded-xl px-3 py-2.5 text-sm text-foreground"
-                  />
-                  <TouchableOpacity
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  <View style={{ flex: 1 }}>
+                    <PlainField value={couponCode} onChangeText={(v) => { setCouponCode(v.toUpperCase()); setCouponError(""); }} placeholder="Enter code" autoCapitalize="characters" />
+                  </View>
+                  <AnimatedPressable
+                    pressScale={0.93}
                     onPress={handleApplyCoupon}
                     disabled={couponLoading || !couponCode.trim()}
-                    className="bg-violet-600 rounded-xl px-4 items-center justify-center flex-row gap-1.5"
-                    style={{ opacity: couponLoading || !couponCode.trim() ? 0.5 : 1 }}
+                    style={{ backgroundColor: colors.indigo, borderRadius: radius.md, paddingHorizontal: 16, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 6, opacity: couponLoading || !couponCode.trim() ? 0.5 : 1 }}
                   >
-                    {couponLoading ? <ActivityIndicator color="#fff" size="small" /> : <Tag size={14} color="#fff" />}
-                    <Text className="text-white text-xs font-bold">Apply</Text>
-                  </TouchableOpacity>
+                    {couponLoading ? <ActivityIndicator color={colors.white} size="small" /> : <Tag size={14} color={colors.white} />}
+                    <Text style={{ color: colors.white, fontFamily: fonts.bodySemibold, fontSize: 12 }}>Apply</Text>
+                  </AnimatedPressable>
                 </View>
               )}
-              {couponError ? <Text className="text-red-600 text-xs mt-2">{couponError}</Text> : null}
-            </View>
+              {couponError ? <Text style={{ color: colors.coral, fontFamily: fonts.body, fontSize: 11.5, marginTop: spacing.sm }}>{couponError}</Text> : null}
+            </Card>
           )}
 
           {cartItems.length > 0 && (
-            <View className="bg-card rounded-2xl border-2 border-border p-4">
-              <Text className="font-bold text-base text-foreground mb-3">Order Summary</Text>
-              <View className="gap-1.5 mb-4">
-                <View className="flex-row justify-between">
-                  <Text className="text-sm text-muted-foreground">Subtotal</Text>
-                  <Text className="text-sm text-muted-foreground">₹{subtotal.toLocaleString("en-IN")}</Text>
+            <Card padding="md">
+              <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 14, color: colors.ink, marginBottom: spacing.md }}>Order Summary</Text>
+              <View style={{ gap: 7, marginBottom: spacing.lg }}>
+                <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                  <Text style={{ fontFamily: fonts.body, fontSize: 13, color: colors.inkMuted }}>Subtotal</Text>
+                  <Text style={{ fontFamily: fonts.body, fontSize: 13, color: colors.inkMuted }}>₹{subtotal.toLocaleString("en-IN")}</Text>
                 </View>
                 {couponDiscount > 0 && (
-                  <View className="flex-row justify-between">
-                    <Text className="text-sm text-green-600">Discount</Text>
-                    <Text className="text-sm text-green-600">-₹{couponDiscount.toLocaleString("en-IN")}</Text>
+                  <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                    <Text style={{ fontFamily: fonts.body, fontSize: 13, color: colors.mint }}>Discount</Text>
+                    <Text style={{ fontFamily: fonts.body, fontSize: 13, color: colors.mint }}>-₹{couponDiscount.toLocaleString("en-IN")}</Text>
                   </View>
                 )}
                 {hasHardcopy && (
-                  <View className="flex-row justify-between">
-                    <Text className="text-sm text-muted-foreground">Delivery</Text>
-                    <Text className="text-sm text-green-600 font-medium">FREE</Text>
+                  <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                    <Text style={{ fontFamily: fonts.body, fontSize: 13, color: colors.inkMuted }}>Delivery</Text>
+                    <Text style={{ fontFamily: fonts.bodyMedium, fontSize: 13, color: colors.mint }}>FREE</Text>
                   </View>
                 )}
-                <View className="flex-row justify-between border-t border-border pt-2 mt-1">
-                  <Text className="font-bold text-foreground text-base">Total</Text>
-                  <Text className="font-bold text-violet-600 text-base">₹{total.toLocaleString("en-IN")}</Text>
+                <View style={{ flexDirection: "row", justifyContent: "space-between", borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 8, marginTop: 4 }}>
+                  <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 14.5, color: colors.ink }}>Total</Text>
+                  <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 14.5, color: colors.indigo }}>₹{total.toLocaleString("en-IN")}</Text>
                 </View>
               </View>
-              <TouchableOpacity
-                onPress={handleProceedToPayment}
-                disabled={!meetsMinOrder}
-                className="bg-violet-600 rounded-xl py-3.5 items-center flex-row justify-center gap-2"
-                style={{ opacity: meetsMinOrder ? 1 : 0.5 }}
-              >
-                <Lock size={16} color="#fff" />
-                <Text className="text-white font-bold text-sm">Proceed to Payment</Text>
-              </TouchableOpacity>
-            </View>
+              <Button label="Proceed to Payment" icon={Lock} onPress={handleProceedToPayment} disabled={!meetsMinOrder} fullWidth size="lg" />
+            </Card>
           )}
         </ScrollView>
       )}
@@ -580,5 +547,21 @@ export default function PaymentsScreen() {
       />
       <TrackOrderModal visible={showTrackModal} onClose={() => setShowTrackModal(false)} />
     </SafeAreaView>
+  );
+}
+
+// Lightweight themed text field for the compact address/coupon rows —
+// full Input component's label/error chrome would be too tall for these dense forms.
+function PlainField(props: React.ComponentProps<typeof TextInput> & { style?: any }) {
+  const { style, ...rest } = props;
+  return (
+    <TextInput
+      placeholderTextColor={colors.inkFaint}
+      style={[
+        { borderWidth: 1.5, borderColor: colors.border, borderRadius: radius.md, paddingHorizontal: 12, paddingVertical: 11, fontFamily: fonts.body, fontSize: 13, color: colors.ink, backgroundColor: colors.surface },
+        style,
+      ]}
+      {...rest}
+    />
   );
 }

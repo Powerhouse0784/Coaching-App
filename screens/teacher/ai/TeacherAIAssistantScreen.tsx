@@ -1,31 +1,68 @@
 import { useState, useEffect, useRef } from "react";
 import {
-  View, Text, TextInput, TouchableOpacity, FlatList,
-  ActivityIndicator, Alert, Image, Linking,
-  KeyboardAvoidingView, Platform,
+  View, Text, TextInput, FlatList, ActivityIndicator, Alert, Linking,
+  KeyboardAvoidingView, Platform, ImageBackground,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient";
+import { BlurView } from "expo-blur";
+import Animated, {
+  FadeIn, FadeInDown, FadeInUp, FadeInLeft, FadeInRight, LinearTransition,
+  useSharedValue, useAnimatedStyle, withRepeat, withTiming, withDelay, Easing,
+} from "react-native-reanimated";
 import {
   ArrowLeft, Send, Paperclip, ImageIcon, FileText, Download,
   Trash2, RefreshCw, Bot, User as UserIcon, Copy, Check,
   Sparkles, Zap, Info, PenTool, ListChecks, Lightbulb, Calculator,
-  Beaker, Globe, GraduationCap,
+  Beaker, Globe, GraduationCap, X,
 } from "lucide-react-native";
 import { useNavigation } from "@react-navigation/native";
 import api from "@/lib/api";
 import { pickAndUploadImage, pickAndUploadFile } from "@/lib/upload";
 import type { AIAssistantMessage } from "@/types";
+import AnimatedPressable from "@/components/ui/AnimatedPressable";
+import { colors, fonts, radius, spacing } from "@/constants/theme";
 
-const QUICK_ACTIONS = [
-  { icon: PenTool, label: "Create Lesson Plan", prompt: "Create a detailed lesson plan for [subject] for [grade] students on the topic of [topic]", color: "#3b82f6" },
-  { icon: ListChecks, label: "Generate Quiz", prompt: "Generate a 10-question multiple choice quiz on [topic] for [grade] level students", color: "#a855f7" },
-  { icon: FileText, label: "Design Assignment", prompt: "Design a creative assignment on [topic] that encourages critical thinking for [grade] students", color: "#22c55e" },
-  { icon: Lightbulb, label: "Teaching Strategy", prompt: "Suggest innovative teaching strategies to make [topic] more engaging for students", color: "#f97316" },
-  { icon: Calculator, label: "Math Problem", prompt: "Create practice problems with solutions for [math topic] at [grade] level", color: "#6366f1" },
-  { icon: Beaker, label: "Science Experiment", prompt: "Suggest a safe, engaging science experiment to demonstrate [concept] for [grade] students", color: "#14b8a6" },
-  { icon: Globe, label: "Explain Concept", prompt: "Explain [complex topic] in simple terms suitable for [grade] level students", color: "#ec4899" },
-  { icon: GraduationCap, label: "Study Guide", prompt: "Create a comprehensive study guide for [topic] covering key concepts, definitions, and practice questions", color: "#eab308" },
+// Placeholder editorial photography — swap for your own abstract/tech visual before launch.
+const HERO_PHOTO = "https://images.unsplash.com/photo-1620712943543-bcc4688e7485?w=1200&q=80&auto=format&fit=crop";
+
+type Tone = "brand" | "gold" | "success" | "danger" | "neutral";
+const toneColor: Record<Tone, string> = { brand: colors.indigo, gold: colors.gold, success: colors.mint, danger: colors.coral, neutral: colors.inkMuted };
+const toneTint: Record<Tone, string> = { brand: colors.indigoTint, gold: colors.goldTint, success: colors.mintTint, danger: colors.coralTint, neutral: colors.surfaceMuted };
+
+const QUICK_ACTIONS: { icon: any; label: string; prompt: string; tone: Tone }[] = [
+  { icon: PenTool, label: "Create Lesson Plan", prompt: "Create a detailed lesson plan for [subject] for [grade] students on the topic of [topic]", tone: "brand" },
+  { icon: ListChecks, label: "Generate Quiz", prompt: "Generate a 10-question multiple choice quiz on [topic] for [grade] level students", tone: "gold" },
+  { icon: FileText, label: "Design Assignment", prompt: "Design a creative assignment on [topic] that encourages critical thinking for [grade] students", tone: "success" },
+  { icon: Lightbulb, label: "Teaching Strategy", prompt: "Suggest innovative teaching strategies to make [topic] more engaging for students", tone: "danger" },
+  { icon: Calculator, label: "Math Problem", prompt: "Create practice problems with solutions for [math topic] at [grade] level", tone: "brand" },
+  { icon: Beaker, label: "Science Experiment", prompt: "Suggest a safe, engaging science experiment to demonstrate [concept] for [grade] students", tone: "success" },
+  { icon: Globe, label: "Explain Concept", prompt: "Explain [complex topic] in simple terms suitable for [grade] level students", tone: "gold" },
+  { icon: GraduationCap, label: "Study Guide", prompt: "Create a comprehensive study guide for [topic] covering key concepts, definitions, and practice questions", tone: "danger" },
 ];
+
+// Three dots pulsing in sequence — the AI's "thinking" indicator.
+function TypingDots() {
+  const d0 = useSharedValue(0.3);
+  const d1 = useSharedValue(0.3);
+  const d2 = useSharedValue(0.3);
+  const dots = [d0, d1, d2];
+  useEffect(() => {
+    dots.forEach((d, i) => {
+      d.value = withDelay(i * 150, withRepeat(withTiming(1, { duration: 500, easing: Easing.inOut(Easing.ease) }), -1, true));
+    });
+  }, []);
+  const s0 = useAnimatedStyle(() => ({ opacity: d0.value, transform: [{ scale: 0.7 + d0.value * 0.3 }] }));
+  const s1 = useAnimatedStyle(() => ({ opacity: d1.value, transform: [{ scale: 0.7 + d1.value * 0.3 }] }));
+  const s2 = useAnimatedStyle(() => ({ opacity: d2.value, transform: [{ scale: 0.7 + d2.value * 0.3 }] }));
+  return (
+    <View style={{ flexDirection: "row", gap: 4 }}>
+      <Animated.View style={[{ width: 6, height: 6, borderRadius: 3, backgroundColor: colors.indigo }, s0]} />
+      <Animated.View style={[{ width: 6, height: 6, borderRadius: 3, backgroundColor: colors.indigo }, s1]} />
+      <Animated.View style={[{ width: 6, height: 6, borderRadius: 3, backgroundColor: colors.indigo }, s2]} />
+    </View>
+  );
+}
 
 export default function TeacherAIAssistantScreen() {
   const navigation = useNavigation();
@@ -56,9 +93,7 @@ export default function TeacherAIAssistantScreen() {
     }
   };
 
-  useEffect(() => {
-    fetchMessages();
-  }, []);
+  useEffect(() => { fetchMessages(); }, []);
 
   const handlePickImage = async () => {
     setUploadingImage(true);
@@ -91,19 +126,11 @@ export default function TeacherAIAssistantScreen() {
     try {
       const history = messages.map((m) => ({ role: m.isAI ? "assistant" : "user", content: m.content }));
       const { data } = await api.post("/api/teacher/ai-assistant", {
-        content: inputText,
-        fileUrl: uploadedFile?.url,
-        fileName: uploadedFile?.name,
-        fileType: uploadedFile?.type,
-        fileSize: uploadedFile?.size,
-        conversationHistory: history,
+        content: inputText, fileUrl: uploadedFile?.url, fileName: uploadedFile?.name,
+        fileType: uploadedFile?.type, fileSize: uploadedFile?.size, conversationHistory: history,
       });
       if (data.success) {
-        setMessages((prev) => [
-          ...prev,
-          { ...data.userMessage, isAI: false },
-          { ...data.aiMessage, isAI: true },
-        ]);
+        setMessages((prev) => [...prev, { ...data.userMessage, isAI: false }, { ...data.aiMessage, isAI: true }]);
         setInputText("");
         setUploadedFile(null);
         setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
@@ -121,15 +148,11 @@ export default function TeacherAIAssistantScreen() {
     Alert.alert("Clear chat history?", "This can't be undone.", [
       { text: "Cancel", style: "cancel" },
       {
-        text: "Clear",
-        style: "destructive",
+        text: "Clear", style: "destructive",
         onPress: async () => {
           try {
             const { data } = await api.delete("/api/teacher/ai-assistant");
-            if (data.success) {
-              setMessages([]);
-              setShowQuickActions(true);
-            }
+            if (data.success) { setMessages([]); setShowQuickActions(true); }
           } catch (e) {
             console.error(e);
             Alert.alert("Error", "Failed to clear chat history");
@@ -146,40 +169,47 @@ export default function TeacherAIAssistantScreen() {
 
   if (loadingMessages) {
     return (
-      <SafeAreaView className="flex-1 bg-background items-center justify-center">
-        <ActivityIndicator size="large" color="#6366f1" />
-        <Text className="text-muted-foreground mt-3">Loading EduGenius…</Text>
+      <SafeAreaView style={{ flex: 1, backgroundColor: colors.paper, alignItems: "center", justifyContent: "center" }}>
+        <ActivityIndicator size="large" color={colors.indigo} />
+        <Text style={{ fontFamily: fonts.body, fontSize: 13, color: colors.inkMuted, marginTop: 12 }}>Loading EduGenius…</Text>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-background">
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.paper }} edges={["top"]}>
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
-        <View className="bg-indigo-600 px-5 pt-2 pb-4 flex-row items-center gap-3">
-          <TouchableOpacity onPress={() => navigation.goBack()} className="w-9 h-9 items-center justify-center">
-            <ArrowLeft size={20} color="#fff" />
-          </TouchableOpacity>
-          <View className="w-10 h-10 bg-white/20 rounded-xl items-center justify-center">
-            <Bot size={18} color="#fff" />
-          </View>
-          <View className="flex-1">
-            <View className="flex-row items-center gap-1.5">
-              <Text className="text-white font-bold text-base">EduGenius AI</Text>
-              <Sparkles size={13} color="#fde047" />
-            </View>
-            <Text className="text-indigo-100 text-xs">Your intelligent teaching assistant</Text>
-          </View>
-          <TouchableOpacity onPress={fetchMessages} className="w-9 h-9 bg-white/15 rounded-lg items-center justify-center mr-1.5">
-            <RefreshCw size={15} color="#fff" />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={handleClearChat} className="w-9 h-9 bg-white/15 rounded-lg items-center justify-center">
-            <Trash2 size={15} color="#fff" />
-          </TouchableOpacity>
+        <View style={{ overflow: "hidden" }}>
+          <ImageBackground source={{ uri: HERO_PHOTO }} resizeMode="cover">
+            <LinearGradient
+              colors={["rgba(27,44,92,0.72)", "rgba(27,44,92,0.85)", "rgba(16,24,49,0.95)"]}
+              style={{ paddingHorizontal: 16, paddingTop: 6, paddingBottom: 16, flexDirection: "row", alignItems: "center", gap: 12 }}
+            >
+              <AnimatedPressable pressScale={0.9} onPress={() => navigation.goBack()} style={{ width: 36, height: 36, alignItems: "center", justifyContent: "center" }}>
+                <ArrowLeft size={20} color={colors.white} />
+              </AnimatedPressable>
+              <View style={{ width: 40, height: 40, backgroundColor: "rgba(255,255,255,0.16)", borderRadius: radius.md, alignItems: "center", justifyContent: "center" }}>
+                <Bot size={19} color={colors.white} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                  <Text style={{ color: colors.white, fontFamily: fonts.bodySemibold, fontSize: 15 }}>EduGenius AI</Text>
+                  <Sparkles size={13} color={colors.gold} />
+                </View>
+                <Text style={{ color: "rgba(255,255,255,0.7)", fontFamily: fonts.body, fontSize: 11.5 }}>Your intelligent teaching assistant</Text>
+              </View>
+              <AnimatedPressable pressScale={0.9} onPress={fetchMessages} style={{ width: 36, height: 36, backgroundColor: "rgba(255,255,255,0.14)", borderRadius: radius.sm, alignItems: "center", justifyContent: "center" }}>
+                <RefreshCw size={15} color={colors.white} />
+              </AnimatedPressable>
+              <AnimatedPressable pressScale={0.9} onPress={handleClearChat} style={{ width: 36, height: 36, backgroundColor: "rgba(255,255,255,0.14)", borderRadius: radius.sm, alignItems: "center", justifyContent: "center" }}>
+                <Trash2 size={15} color={colors.white} />
+              </AnimatedPressable>
+            </LinearGradient>
+          </ImageBackground>
         </View>
 
         {messages.length === 0 && showQuickActions ? (
-        <FlatList
+          <FlatList
             key="quick-actions-grid"
             data={QUICK_ACTIONS}
             keyExtractor={(a) => a.label}
@@ -187,45 +217,49 @@ export default function TeacherAIAssistantScreen() {
             columnWrapperStyle={{ gap: 10 }}
             contentContainerStyle={{ padding: 20, gap: 10 }}
             ListHeaderComponent={
-              <View className="items-center mb-5">
-                <View className="w-16 h-16 bg-indigo-500 rounded-2xl items-center justify-center mb-3">
-                  <Bot size={30} color="#fff" />
-                </View>
-                <Text className="text-lg font-bold text-foreground text-center">Welcome to EduGenius AI! 👋</Text>
-                <Text className="text-sm text-muted-foreground text-center mt-1.5">
-                  Try a quick action below or ask me anything
-                </Text>
-              </View>
+              <Animated.View entering={FadeIn.duration(400)} style={{ alignItems: "center", marginBottom: 20 }}>
+                <LinearGradient colors={[colors.indigoDark, colors.indigo]} style={{ width: 68, height: 68, borderRadius: radius.xl, alignItems: "center", justifyContent: "center", marginBottom: 14 }}>
+                  <Bot size={30} color={colors.white} />
+                  <View style={{ position: "absolute", top: -4, right: -4, width: 20, height: 20, borderRadius: 10, backgroundColor: colors.gold, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: colors.paper }}>
+                    <Sparkles size={10} color={colors.ink} />
+                  </View>
+                </LinearGradient>
+                <Text style={{ fontFamily: fonts.displayBold, fontSize: 19, color: colors.ink, textAlign: "center" }}>Welcome to EduGenius AI 👋</Text>
+                <Text style={{ fontFamily: fonts.body, fontSize: 13, color: colors.inkMuted, textAlign: "center", marginTop: 6, maxWidth: "85%" }}>Try a quick action below or ask me anything about teaching</Text>
+              </Animated.View>
             }
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                onPress={() => { setInputText(item.prompt); setShowQuickActions(false); }}
-                className="flex-1 bg-card rounded-2xl border border-border p-3.5"
-              >
-                <View className="w-9 h-9 rounded-xl items-center justify-center mb-2.5" style={{ backgroundColor: `${item.color}20` }}>
-                  <item.icon size={16} color={item.color} />
-                </View>
-                <Text className="font-bold text-foreground text-sm mb-1">{item.label}</Text>
-                <Text className="text-[11px] text-muted-foreground" numberOfLines={2}>{item.prompt}</Text>
-              </TouchableOpacity>
+            renderItem={({ item, index }) => (
+              <Animated.View entering={FadeInDown.duration(350).delay(index * 45).springify().damping(15)} style={{ flex: 1 }}>
+                <AnimatedPressable
+                  pressScale={0.96}
+                  onPress={() => { setInputText(item.prompt); setShowQuickActions(false); }}
+                  style={{ backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, padding: spacing.md }}
+                >
+                  <View style={{ width: 36, height: 36, borderRadius: radius.md, backgroundColor: toneTint[item.tone], alignItems: "center", justifyContent: "center", marginBottom: 10 }}>
+                    <item.icon size={16} color={toneColor[item.tone]} />
+                  </View>
+                  <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 13, color: colors.ink, marginBottom: 4 }}>{item.label}</Text>
+                  <Text style={{ fontFamily: fonts.body, fontSize: 10.5, color: colors.inkMuted }} numberOfLines={2}>{item.prompt}</Text>
+                </AnimatedPressable>
+              </Animated.View>
             )}
             ListFooterComponent={
-              <View className="bg-blue-50 border-2 border-blue-200 rounded-xl p-3.5 mt-2">
-                <View className="flex-row items-center gap-2 mb-2">
-                  <Info size={14} color="#2563eb" />
-                  <Text className="font-bold text-xs text-blue-900">Pro Tips</Text>
+              <Animated.View entering={FadeInDown.duration(400).delay(400)} style={{ backgroundColor: colors.indigoTint, borderRadius: radius.md, padding: spacing.md, marginTop: 4 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 7, marginBottom: 8 }}>
+                  <Info size={14} color={colors.indigo} />
+                  <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 12, color: colors.indigo }}>Pro Tips</Text>
                 </View>
                 {[
                   "Upload images or PDFs for help with visual content",
                   "Be specific with grade level and subject",
                   "Ask follow-up questions to refine content",
                 ].map((tip, i) => (
-                  <View key={i} className="flex-row items-start gap-1.5 mb-1">
-                    <Zap size={11} color="#2563eb" style={{ marginTop: 2 }} />
-                    <Text className="text-xs text-blue-700 flex-1">{tip}</Text>
+                  <View key={i} style={{ flexDirection: "row", alignItems: "flex-start", gap: 7, marginBottom: 4 }}>
+                    <Zap size={11} color={colors.indigo} style={{ marginTop: 2 }} />
+                    <Text style={{ fontFamily: fonts.body, fontSize: 12, color: colors.indigo, flex: 1 }}>{tip}</Text>
                   </View>
                 ))}
-              </View>
+              </Animated.View>
             }
           />
         ) : (
@@ -236,141 +270,101 @@ export default function TeacherAIAssistantScreen() {
             keyExtractor={(m) => m.id}
             contentContainerStyle={{ padding: 16 }}
             onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: false })}
-            renderItem={({ item: msg }) => (
-              <View className={`flex-row gap-2.5 mb-4 ${msg.isAI ? "" : "flex-row-reverse"}`}>
-                <View
-                  className="w-8 h-8 rounded-xl items-center justify-center"
-                  style={{ backgroundColor: msg.isAI ? "#6366f1" : "#0ea5e9" }}
-                >
-                  {msg.isAI ? <Bot size={16} color="#fff" /> : <UserIcon size={16} color="#fff" />}
+            renderItem={({ item: msg, index }) => (
+              <Animated.View
+                entering={(msg.isAI ? FadeInLeft : FadeInRight).duration(300).delay(Math.min(index, 4) * 40).springify().damping(16)}
+                layout={LinearTransition.duration(200)}
+                style={{ flexDirection: msg.isAI ? "row" : "row-reverse", gap: 10, marginBottom: 16 }}
+              >
+                <View style={{ width: 30, height: 30, borderRadius: radius.sm, alignItems: "center", justifyContent: "center", backgroundColor: msg.isAI ? colors.indigo : "#3D9FB0" }}>
+                  {msg.isAI ? <Bot size={15} color={colors.white} /> : <UserIcon size={15} color={colors.white} />}
                 </View>
-                <View
-                  className="rounded-2xl p-3.5"
-                  style={{
-                    maxWidth: "78%",
-                    backgroundColor: msg.isAI ? "#f9fafb" : "#0ea5e9",
-                  }}
-                >
-                  <View className="flex-row items-center justify-between gap-2 mb-1.5">
-                    <Text className="font-semibold text-xs" style={{ color: msg.isAI ? "#111827" : "#fff" }}>
-                      {msg.isAI ? "EduGenius AI" : "You"}
-                    </Text>
-                    <Text className="text-[10px]" style={{ color: msg.isAI ? "#9ca3af" : "#bae6fd" }}>
-                      {new Date(msg.createdAt).toLocaleTimeString()}
-                    </Text>
+                <View style={{ maxWidth: "78%", borderRadius: radius.lg, padding: spacing.md, backgroundColor: msg.isAI ? colors.surfaceMuted : colors.indigo }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 6 }}>
+                    <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 11, color: msg.isAI ? colors.ink : colors.white }}>{msg.isAI ? "EduGenius AI" : "You"}</Text>
+                    <Text style={{ fontFamily: fonts.body, fontSize: 9.5, color: msg.isAI ? colors.inkFaint : "rgba(255,255,255,0.65)" }}>{new Date(msg.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</Text>
                   </View>
 
                   {msg.fileUrl && (
-                    <TouchableOpacity
-                      onPress={() => Linking.openURL(msg.fileUrl!)}
-                      className="flex-row items-center gap-2 rounded-xl p-2.5 mb-2"
-                      style={{ backgroundColor: msg.isAI ? "#f3f4f6" : "#0284c7" }}
-                    >
-                      {msg.fileType === "image" ? (
-                        <ImageIcon size={16} color={msg.isAI ? "#4b5563" : "#e0f2fe"} />
-                      ) : (
-                        <FileText size={16} color={msg.isAI ? "#4b5563" : "#e0f2fe"} />
-                      )}
-                      <View className="flex-1">
-                        <Text className="text-xs font-medium" style={{ color: msg.isAI ? "#111827" : "#fff" }} numberOfLines={1}>
-                          {msg.fileName}
-                        </Text>
-                        <Text className="text-[10px]" style={{ color: msg.isAI ? "#6b7280" : "#bae6fd" }}>{msg.fileSize}</Text>
+                    <AnimatedPressable pressScale={0.97} onPress={() => Linking.openURL(msg.fileUrl!)} style={{ flexDirection: "row", alignItems: "center", gap: 8, borderRadius: radius.md, padding: 9, marginBottom: 8, backgroundColor: msg.isAI ? colors.surface : "rgba(255,255,255,0.16)" }}>
+                      {msg.fileType === "image" ? <ImageIcon size={15} color={msg.isAI ? colors.inkMuted : colors.white} /> : <FileText size={15} color={msg.isAI ? colors.inkMuted : colors.white} />}
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontFamily: fonts.bodyMedium, fontSize: 11, color: msg.isAI ? colors.ink : colors.white }} numberOfLines={1}>{msg.fileName}</Text>
+                        <Text style={{ fontFamily: fonts.body, fontSize: 9.5, color: msg.isAI ? colors.inkMuted : "rgba(255,255,255,0.7)" }}>{msg.fileSize}</Text>
                       </View>
-                      <Download size={13} color={msg.isAI ? "#4b5563" : "#e0f2fe"} />
-                    </TouchableOpacity>
+                      <Download size={12} color={msg.isAI ? colors.inkMuted : colors.white} />
+                    </AnimatedPressable>
                   )}
 
-                  <Text className="text-sm leading-relaxed" style={{ color: msg.isAI ? "#374151" : "#fff" }}>
-                    {msg.content}
-                  </Text>
+                  <Text style={{ fontFamily: fonts.body, fontSize: 13, lineHeight: 19, color: msg.isAI ? colors.ink : colors.white }}>{msg.content}</Text>
 
                   {msg.isAI && (
-                    <TouchableOpacity
-                      onPress={() => handleCopy(msg.content, msg.id)}
-                      className="flex-row items-center gap-1.5 bg-secondary rounded-lg px-2.5 py-1.5 self-start mt-2.5"
-                    >
+                    <AnimatedPressable pressScale={0.93} onPress={() => handleCopy(msg.content, msg.id)} style={{ flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: colors.surface, borderRadius: radius.sm, paddingHorizontal: 9, paddingVertical: 6, alignSelf: "flex-start", marginTop: 8 }}>
                       {copiedId === msg.id ? (
-                        <>
-                          <Check size={12} color="#22c55e" />
-                          <Text className="text-xs font-medium text-foreground">Copied!</Text>
-                        </>
+                        <><Check size={11} color={colors.mint} /><Text style={{ fontFamily: fonts.bodyMedium, fontSize: 11, color: colors.mint }}>Copied!</Text></>
                       ) : (
-                        <>
-                          <Copy size={12} color="#6b7280" />
-                          <Text className="text-xs font-medium text-foreground">Copy</Text>
-                        </>
+                        <><Copy size={11} color={colors.inkMuted} /><Text style={{ fontFamily: fonts.bodyMedium, fontSize: 11, color: colors.inkMuted }}>Copy</Text></>
                       )}
-                    </TouchableOpacity>
+                    </AnimatedPressable>
                   )}
                 </View>
-              </View>
+              </Animated.View>
             )}
             ListFooterComponent={
               sending ? (
-                <View className="flex-row items-center gap-2.5 mb-4">
-                  <View className="w-8 h-8 rounded-xl bg-indigo-600 items-center justify-center">
-                    <Bot size={16} color="#fff" />
+                <Animated.View entering={FadeIn.duration(200)} style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 16 }}>
+                  <View style={{ width: 30, height: 30, borderRadius: radius.sm, backgroundColor: colors.indigo, alignItems: "center", justifyContent: "center" }}>
+                    <Bot size={15} color={colors.white} />
                   </View>
-                  <View className="bg-secondary rounded-2xl p-3.5 flex-row items-center gap-2">
-                    <ActivityIndicator size="small" color="#6366f1" />
-                    <Text className="text-xs text-muted-foreground">EduGenius is thinking…</Text>
+                  <View style={{ backgroundColor: colors.surfaceMuted, borderRadius: radius.lg, paddingHorizontal: 14, paddingVertical: 12, flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    <TypingDots />
+                    <Text style={{ fontFamily: fonts.body, fontSize: 11.5, color: colors.inkMuted }}>EduGenius is thinking…</Text>
                   </View>
-                </View>
+                </Animated.View>
               ) : null
             }
           />
         )}
 
-        <View className="border-t border-border p-3">
+        <View style={{ borderTopWidth: 1, borderTopColor: colors.border, padding: 12 }}>
           {uploadedFile && (
-            <View className="flex-row items-center gap-2.5 bg-blue-50 border-2 border-blue-200 rounded-xl p-3 mb-2.5">
-              {uploadedFile.type === "image" ? <ImageIcon size={18} color="#2563eb" /> : <FileText size={18} color="#2563eb" />}
-              <View className="flex-1">
-                <Text className="text-xs font-semibold text-foreground" numberOfLines={1}>{uploadedFile.name}</Text>
-                <Text className="text-[10px] text-muted-foreground">{uploadedFile.size}</Text>
+            <Animated.View entering={FadeInUp.duration(200)} style={{ flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: colors.indigoTint, borderRadius: radius.md, padding: 10, marginBottom: 10 }}>
+              {uploadedFile.type === "image" ? <ImageIcon size={17} color={colors.indigo} /> : <FileText size={17} color={colors.indigo} />}
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 12, color: colors.ink }} numberOfLines={1}>{uploadedFile.name}</Text>
+                <Text style={{ fontFamily: fonts.body, fontSize: 10, color: colors.inkMuted }}>{uploadedFile.size}</Text>
               </View>
-              <TouchableOpacity onPress={() => setUploadedFile(null)}>
-                <Text className="text-red-600 text-xs font-semibold">Remove</Text>
-              </TouchableOpacity>
-            </View>
+              <AnimatedPressable pressScale={0.85} onPress={() => setUploadedFile(null)}>
+                <X size={16} color={colors.coral} />
+              </AnimatedPressable>
+            </Animated.View>
           )}
-          <View className="flex-row items-end gap-2">
-            <TouchableOpacity
-              onPress={handlePickFile}
-              disabled={uploadingFile}
-              className="w-11 h-11 bg-secondary rounded-xl items-center justify-center"
-            >
-              {uploadingFile ? <ActivityIndicator size="small" color="#6366f1" /> : <Paperclip size={18} color="#6b7280" />}
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={handlePickImage}
-              disabled={uploadingImage}
-              className="w-11 h-11 bg-secondary rounded-xl items-center justify-center"
-            >
-              {uploadingImage ? <ActivityIndicator size="small" color="#6366f1" /> : <ImageIcon size={18} color="#6b7280" />}
-            </TouchableOpacity>
+          <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 8 }}>
+            <AnimatedPressable pressScale={0.9} onPress={handlePickFile} disabled={uploadingFile} style={{ width: 42, height: 42, backgroundColor: colors.surfaceMuted, borderRadius: radius.md, alignItems: "center", justifyContent: "center" }}>
+              {uploadingFile ? <ActivityIndicator size="small" color={colors.indigo} /> : <Paperclip size={17} color={colors.inkMuted} />}
+            </AnimatedPressable>
+            <AnimatedPressable pressScale={0.9} onPress={handlePickImage} disabled={uploadingImage} style={{ width: 42, height: 42, backgroundColor: colors.surfaceMuted, borderRadius: radius.md, alignItems: "center", justifyContent: "center" }}>
+              {uploadingImage ? <ActivityIndicator size="small" color={colors.indigo} /> : <ImageIcon size={17} color={colors.inkMuted} />}
+            </AnimatedPressable>
             <TextInput
               value={inputText}
               onChangeText={setInputText}
               placeholder="Ask me anything about teaching…"
+              placeholderTextColor={colors.inkFaint}
               multiline
               editable={!sending}
-              className="flex-1 border-2 border-border rounded-xl px-3 py-2.5 text-foreground text-sm"
-              style={{ maxHeight: 90 }}
+              style={{ flex: 1, borderWidth: 1.5, borderColor: colors.border, borderRadius: radius.md, paddingHorizontal: 12, paddingVertical: 10, fontFamily: fonts.body, fontSize: 13, color: colors.ink, maxHeight: 90 }}
             />
-            <TouchableOpacity
+            <AnimatedPressable
+              pressScale={0.9}
               onPress={handleSend}
               disabled={sending || (!inputText.trim() && !uploadedFile)}
-              className="w-11 h-11 bg-indigo-600 rounded-xl items-center justify-center"
-              style={{ opacity: sending || (!inputText.trim() && !uploadedFile) ? 0.5 : 1 }}
+              style={{ width: 42, height: 42, backgroundColor: colors.indigo, borderRadius: radius.md, alignItems: "center", justifyContent: "center", opacity: sending || (!inputText.trim() && !uploadedFile) ? 0.5 : 1 }}
             >
-              {sending ? <ActivityIndicator size="small" color="#fff" /> : <Send size={18} color="#fff" />}
-            </TouchableOpacity>
+              {sending ? <ActivityIndicator size="small" color={colors.white} /> : <Send size={18} color={colors.white} />}
+            </AnimatedPressable>
           </View>
-          <Text className="text-[10px] text-muted-foreground text-center mt-2">
-            Supports images (8MB) & PDFs (16MB)
-          </Text>
+          <Text style={{ fontFamily: fonts.body, fontSize: 10, color: colors.inkFaint, textAlign: "center", marginTop: 8 }}>Supports images (8MB) & PDFs (16MB)</Text>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>

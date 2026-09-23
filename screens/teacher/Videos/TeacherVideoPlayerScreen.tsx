@@ -1,21 +1,18 @@
 import { useState, useCallback } from "react";
-import { View, Text, TouchableOpacity, ScrollView, Dimensions, Image, Linking } from "react-native";
+import { View, Text, ScrollView, Dimensions, Image, Linking } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ArrowLeft, SkipBack, SkipForward, List, X, Play, ExternalLink } from "lucide-react-native";
+import Animated, { FadeIn } from "react-native-reanimated";
+import { ArrowLeft, SkipBack, SkipForward, List, X, Play, ExternalLink, Eye } from "lucide-react-native";
 import YoutubePlayer from "react-native-youtube-iframe";
 import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { TeacherVideosStackParamList } from "@/navigation/TeacherVideosStackNavigator";
+import AnimatedPressable from "@/components/ui/AnimatedPressable";
+import { colors, fonts, radius, spacing, type } from "@/constants/theme";
 
 type Nav = NativeStackNavigationProp<TeacherVideosStackParamList, "Player">;
 type Rt = RouteProp<TeacherVideosStackParamList, "Player">;
-type YouTubePlayerState =
-  | "unstarted"
-  | "ended"
-  | "playing"
-  | "paused"
-  | "buffering"
-  | "video cued";
+type YouTubePlayerState = "unstarted" | "ended" | "playing" | "paused" | "buffering" | "video cued";
 
 const { width } = Dimensions.get("window");
 const PLAYER_HEIGHT = (width * 9) / 16;
@@ -39,18 +36,18 @@ export default function TeacherVideoPlayerScreen() {
   );
 
   return (
-    <SafeAreaView className="flex-1 bg-black" edges={["top"]}>
-      <View className="flex-row items-center gap-3 px-4 py-3">
-        <TouchableOpacity onPress={() => navigation.goBack()} className="w-9 h-9 items-center justify-center">
-          <ArrowLeft size={20} color="#fff" />
-        </TouchableOpacity>
-        <View className="flex-1">
-          <Text className="text-white text-sm font-semibold" numberOfLines={1}>{video.title}</Text>
-          <Text className="text-white/50 text-xs" numberOfLines={1}>{folderName}</Text>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.black }} edges={["top"]}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 12 }}>
+        <AnimatedPressable pressScale={0.9} onPress={() => navigation.goBack()} style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: "rgba(255,255,255,0.12)", alignItems: "center", justifyContent: "center" }}>
+          <ArrowLeft size={18} color={colors.white} />
+        </AnimatedPressable>
+        <View style={{ flex: 1 }}>
+          <Text style={{ color: colors.white, fontFamily: fonts.bodySemibold, fontSize: 13 }} numberOfLines={1}>{video.title}</Text>
+          <Text style={{ color: "rgba(255,255,255,0.5)", fontFamily: fonts.body, fontSize: 11 }} numberOfLines={1}>{folderName}</Text>
         </View>
-        <TouchableOpacity onPress={() => setShowQueue((v) => !v)} className="w-9 h-9 items-center justify-center">
-          <List size={20} color="#fff" />
-        </TouchableOpacity>
+        <AnimatedPressable pressScale={0.9} onPress={() => setShowQueue((v) => !v)} style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: "rgba(255,255,255,0.12)", alignItems: "center", justifyContent: "center" }}>
+          <List size={16} color={colors.white} />
+        </AnimatedPressable>
       </View>
 
       <YoutubePlayer
@@ -58,87 +55,83 @@ export default function TeacherVideoPlayerScreen() {
         play={playing}
         videoId={video.videoUrl}
         onChangeState={(state: YouTubePlayerState) => {
-          if (state === "playing") {
-            setPlaying(true);
-          }
-
-          if (state === "paused" || state === "ended") {
-            setPlaying(false);
-          }
+          if (state === "playing") setPlaying(true);
+          if (state === "paused" || state === "ended") setPlaying(false);
         }}
         webViewProps={{ androidLayerType: "hardware" }}
       />
 
       {showQueue ? (
-        <ScrollView className="flex-1 bg-black" contentContainerStyle={{ padding: 16 }}>
-          <View className="flex-row items-center justify-between mb-3">
-            <Text className="text-white font-bold text-sm">Queue · {queue.length} videos</Text>
-            <TouchableOpacity onPress={() => setShowQueue(false)}>
-              <X size={18} color="#fff" />
-            </TouchableOpacity>
+        <ScrollView style={{ flex: 1, backgroundColor: colors.black }} contentContainerStyle={{ padding: 16 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.md }}>
+            <Text style={{ color: colors.white, fontFamily: fonts.bodySemibold, fontSize: 13 }}>Queue · {queue.length} videos</Text>
+            <AnimatedPressable pressScale={0.9} onPress={() => setShowQueue(false)}>
+              <X size={18} color={colors.white} />
+            </AnimatedPressable>
           </View>
-          {queue.map((v, i) => (
-            <TouchableOpacity
-              key={v.id}
-              onPress={() => goTo(v)}
-              className="flex-row items-center gap-2.5 p-2 rounded-xl mb-1"
-              style={{ backgroundColor: v.id === video.id ? "rgba(239,68,68,0.15)" : "transparent" }}
-            >
-              <Text className="text-white/40 text-xs w-5 text-center">{i + 1}</Text>
-              <View className="w-16 h-10 bg-white/10 rounded-lg overflow-hidden">
-                {v.thumbnail ? (
-                  <Image source={{ uri: v.thumbnail }} className="w-full h-full" resizeMode="cover" />
-                ) : null}
-              </View>
-              <Text
-                className="flex-1 text-xs"
-                style={{ color: v.id === video.id ? "#fca5a5" : "rgba(255,255,255,0.8)" }}
-                numberOfLines={2}
+          {queue.map((v, i) => {
+            const isCurrent = v.id === video.id;
+            return (
+              <AnimatedPressable
+                key={v.id}
+                pressScale={0.98}
+                onPress={() => goTo(v)}
+                style={{ flexDirection: "row", alignItems: "center", gap: 10, padding: 8, borderRadius: radius.md, marginBottom: 4, backgroundColor: isCurrent ? "rgba(193,68,58,0.18)" : "transparent" }}
               >
-                {v.title}
-              </Text>
-            </TouchableOpacity>
-          ))}
+                <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 11, width: 20, textAlign: "center" }}>{i + 1}</Text>
+                <View style={{ width: 64, height: 40, backgroundColor: "rgba(255,255,255,0.08)", borderRadius: radius.sm, overflow: "hidden" }}>
+                  {v.thumbnail ? <Image source={{ uri: v.thumbnail }} style={{ width: "100%", height: "100%" }} resizeMode="cover" /> : null}
+                </View>
+                <Text style={{ flex: 1, fontSize: 12, fontFamily: isCurrent ? fonts.bodySemibold : fonts.body, color: isCurrent ? "#E9938B" : "rgba(255,255,255,0.8)" }} numberOfLines={2}>
+                  {v.title}
+                </Text>
+              </AnimatedPressable>
+            );
+          })}
         </ScrollView>
       ) : (
-        <ScrollView className="flex-1 bg-background rounded-t-3xl mt-2" contentContainerStyle={{ padding: 20 }}>
-          <View className="flex-row items-center gap-3 mb-4">
-            {prevVideo && (
-              <TouchableOpacity onPress={() => goTo(prevVideo)} className="flex-1 border-2 border-border rounded-xl py-2.5 flex-row items-center justify-center gap-1.5">
-                <SkipBack size={14} color="#374151" />
-                <Text className="text-xs font-semibold text-foreground">Previous</Text>
-              </TouchableOpacity>
-            )}
-            {nextVideo && (
-              <TouchableOpacity onPress={() => goTo(nextVideo)} className="flex-1 bg-red-500 rounded-xl py-2.5 flex-row items-center justify-center gap-1.5">
-                <Text className="text-xs font-semibold text-white">Next</Text>
-                <SkipForward size={14} color="#fff" />
-              </TouchableOpacity>
-            )}
-          </View>
+        <Animated.View entering={FadeIn.duration(250)} style={{ flex: 1, backgroundColor: colors.paper, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, marginTop: 6 }}>
+          <ScrollView contentContainerStyle={{ padding: spacing.xl }} showsVerticalScrollIndicator={false}>
+            <View style={{ flexDirection: "row", gap: 10, marginBottom: spacing.lg }}>
+              {prevVideo && (
+                <AnimatedPressable pressScale={0.96} onPress={() => goTo(prevVideo)} style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderWidth: 1.5, borderColor: colors.border, borderRadius: radius.md, paddingVertical: 11 }}>
+                  <SkipBack size={14} color={colors.ink} />
+                  <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 12.5, color: colors.ink }}>Previous</Text>
+                </AnimatedPressable>
+              )}
+              {nextVideo && (
+                <AnimatedPressable pressScale={0.96} onPress={() => goTo(nextVideo)} style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: colors.coral, borderRadius: radius.md, paddingVertical: 11 }}>
+                  <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 12.5, color: colors.white }}>Next</Text>
+                  <SkipForward size={14} color={colors.white} />
+                </AnimatedPressable>
+              )}
+            </View>
 
-          <Text className="text-lg font-bold text-foreground mb-2">{video.title}</Text>
-          <View className="flex-row items-center gap-3 mb-4">
-            <Text className="text-xs text-muted-foreground">{video.duration}</Text>
-            <Text className="text-xs text-muted-foreground">·</Text>
-            <Text className="text-xs text-muted-foreground">{video.views.toLocaleString()} views</Text>
-            <Text className="text-xs text-muted-foreground">·</Text>
-            <Text className="text-xs text-muted-foreground">{video.uniqueViewers} unique</Text>
-          </View>
+            <Text style={{ ...type.h3, fontSize: 17, color: colors.ink, marginBottom: spacing.sm }}>{video.title}</Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 14, marginBottom: spacing.lg }}>
+              <Text style={{ ...type.caption, color: colors.inkMuted }}>{video.duration}</Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                <Eye size={12} color={colors.inkFaint} />
+                <Text style={{ ...type.caption, color: colors.inkMuted }}>{video.views.toLocaleString()} views</Text>
+              </View>
+              <Text style={{ ...type.caption, color: colors.inkMuted }}>{video.uniqueViewers} unique</Text>
+            </View>
 
-          <TouchableOpacity
-            onPress={() => Linking.openURL(`https://www.youtube.com/watch?v=${video.videoUrl}`)}
-            className="flex-row items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2.5 self-start mb-4"
-          >
-            <Play size={14} color="#ef4444" />
-            <Text className="text-xs font-semibold text-red-600">Open on YouTube</Text>
-            <ExternalLink size={12} color="#ef4444" />
-          </TouchableOpacity>
+            <AnimatedPressable
+              pressScale={0.96}
+              onPress={() => Linking.openURL(`https://www.youtube.com/watch?v=${video.videoUrl}`)}
+              style={{ flexDirection: "row", alignItems: "center", gap: 7, backgroundColor: colors.coralTint, borderWidth: 1, borderColor: "rgba(193,68,58,0.3)", borderRadius: radius.md, paddingHorizontal: 13, paddingVertical: 10, alignSelf: "flex-start", marginBottom: spacing.lg }}
+            >
+              <Play size={13} color={colors.coral} fill={colors.coral} />
+              <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 12.5, color: colors.coral }}>Open on YouTube</Text>
+              <ExternalLink size={11} color={colors.coral} />
+            </AnimatedPressable>
 
-          {video.description ? (
-            <Text className="text-sm text-muted-foreground leading-relaxed">{video.description}</Text>
-          ) : null}
-        </ScrollView>
+            {video.description ? (
+              <Text style={{ ...type.body, fontSize: 13.5, color: colors.inkMuted, lineHeight: 20 }}>{video.description}</Text>
+            ) : null}
+          </ScrollView>
+        </Animated.View>
       )}
     </SafeAreaView>
   );

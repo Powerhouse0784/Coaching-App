@@ -1,6 +1,10 @@
 import { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, Modal, ActivityIndicator, Alert } from "react-native";
-import { X } from "lucide-react-native";
+import { View, Text, TextInput, Modal, Pressable } from "react-native";
+import Animated, { FadeIn, ZoomIn } from "react-native-reanimated";
+import { X, PartyPopper } from "lucide-react-native";
+import Button from "@/components/ui/Button";
+import AnimatedPressable from "@/components/ui/AnimatedPressable";
+import { colors, fonts, radius, spacing, type } from "@/constants/theme";
 
 interface Props {
   visible: boolean;
@@ -23,7 +27,6 @@ export default function HolidayFormModal({ visible, dateKey, onClose, onSave }: 
   const handleSubmit = async () => {
     if (submitting) return;
     if (!title.trim()) {
-      Alert.alert("Missing title", "Please enter a title for this holiday");
       return;
     }
     setSubmitting(true);
@@ -40,53 +43,52 @@ export default function HolidayFormModal({ visible, dateKey, onClose, onSave }: 
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={handleClose}>
-      <View className="flex-1 bg-black/70 items-center justify-center px-5">
-        <View className="w-full bg-background rounded-3xl overflow-hidden">
-          <View className="flex-row items-center justify-between p-5 border-b border-border">
-            <View>
-              <Text className="text-lg font-bold text-foreground">Add Custom Holiday</Text>
-              <Text className="text-xs text-muted-foreground">{formatDateLabel(dateKey)}</Text>
+      <Animated.View entering={FadeIn.duration(200)} style={{ flex: 1, backgroundColor: "rgba(23,25,35,0.6)", alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.lg }}>
+        <Pressable style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }} onPress={handleClose} />
+        <Animated.View entering={ZoomIn.duration(250)} style={{ width: "100%", backgroundColor: colors.paper, borderRadius: radius.xl, overflow: "hidden" }}>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+              <View style={{ width: 34, height: 34, borderRadius: radius.sm, backgroundColor: colors.coralTint, alignItems: "center", justifyContent: "center" }}>
+                <PartyPopper size={16} color={colors.coral} />
+              </View>
+              <View>
+                <Text style={{ ...type.h3, fontSize: 15.5, color: colors.ink }}>Add Custom Holiday</Text>
+                <Text style={{ ...type.caption, color: colors.inkMuted, marginTop: 1 }}>{formatDateLabel(dateKey)}</Text>
+              </View>
             </View>
-            <TouchableOpacity onPress={handleClose} disabled={submitting}>
-              <X size={22} color="#9ca3af" />
-            </TouchableOpacity>
+            <AnimatedPressable pressScale={0.9} onPress={handleClose} disabled={submitting} style={{ width: 30, height: 30, borderRadius: radius.sm, backgroundColor: colors.surfaceMuted, alignItems: "center", justifyContent: "center" }}>
+              <X size={16} color={colors.inkMuted} />
+            </AnimatedPressable>
           </View>
 
-          <View className="p-5">
-            <Text className="text-sm font-semibold text-foreground mb-1.5">Title *</Text>
+          <View style={{ padding: spacing.lg }}>
+            <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 13, color: colors.ink, marginBottom: 6 }}>Title *</Text>
             <TextInput
               value={title}
               onChangeText={setTitle}
               placeholder="e.g., Institute Anniversary"
-              className="border-2 border-border rounded-xl px-3 py-2.5 text-foreground text-sm"
+              placeholderTextColor={colors.inkFaint}
               autoFocus
+              style={{
+                borderWidth: 1.5, borderColor: colors.border, borderRadius: radius.md,
+                paddingHorizontal: spacing.md, paddingVertical: 10, color: colors.ink,
+                fontFamily: fonts.body, fontSize: 14, backgroundColor: colors.surface,
+              }}
             />
           </View>
 
-          <View className="flex-row gap-3 p-5 border-t border-border">
-            <TouchableOpacity
-              onPress={handleClose}
-              disabled={submitting}
-              className="flex-1 border-2 border-border rounded-xl py-3 items-center"
-              style={{ opacity: submitting ? 0.5 : 1 }}
-            >
-              <Text className="font-semibold text-foreground text-sm">Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
+          <View style={{ flexDirection: "row", gap: spacing.sm, padding: spacing.lg, borderTopWidth: 1, borderTopColor: colors.border }}>
+            <Button label="Cancel" variant="ghost" onPress={handleClose} disabled={submitting} style={{ flex: 1 }} />
+            <Button
+              label="Add Holiday"
               onPress={handleSubmit}
-              disabled={submitting}
-              className="flex-1 bg-red-600 rounded-xl py-3 items-center flex-row justify-center gap-2"
-              style={{ opacity: submitting ? 0.6 : 1 }}
-            >
-              {submitting ? (
-                <ActivityIndicator color="#fff" size="small" />
-              ) : (
-                <Text className="text-white font-semibold text-sm">Add Holiday</Text>
-              )}
-            </TouchableOpacity>
+              disabled={submitting || !title.trim()}
+              loading={submitting}
+              style={{ flex: 1, backgroundColor: colors.coral }}
+            />
           </View>
-        </View>
-      </View>
+        </Animated.View>
+      </Animated.View>
     </Modal>
   );
 }

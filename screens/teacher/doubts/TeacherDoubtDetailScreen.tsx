@@ -1,13 +1,13 @@
 import { useState } from "react";
 import {
-  View, Text, TextInput, TouchableOpacity, FlatList,
-  ActivityIndicator, Image, Alert, Linking,
-  KeyboardAvoidingView, Platform,
+  View, Text, TextInput, FlatList, ActivityIndicator, Image, Alert,
+  Linking, KeyboardAvoidingView, Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import Animated, { FadeIn, FadeInUp, ZoomIn, LinearTransition } from "react-native-reanimated";
 import {
   ArrowLeft, ThumbsUp, Trash2, FileText, ImageIcon, Send,
-  CheckCircle2, Pin, X,
+  CheckCircle2, Pin, X, Eye,
 } from "lucide-react-native";
 import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -15,15 +15,19 @@ import api from "@/lib/api";
 import { pickAndUploadImage, pickAndUploadPDF, type UploadedFile } from "@/lib/upload";
 import type { Doubt, DoubtReply } from "@/types";
 import type { TeacherRootStackParamList } from "@/navigation/TeacherRootNavigator";
+import Badge from "@/components/ui/Badge";
+import Button from "@/components/ui/Button";
+import AnimatedPressable from "@/components/ui/AnimatedPressable";
+import { colors, fonts, radius, spacing, type } from "@/constants/theme";
 
 type Nav = NativeStackNavigationProp<TeacherRootStackParamList, "DoubtDetail">;
 type Rt = RouteProp<TeacherRootStackParamList, "DoubtDetail">;
 
-const PRIORITY_COLORS: Record<string, { bg: string; text: string }> = {
-  low: { bg: "#dcfce7", text: "#15803d" },
-  normal: { bg: "#dbeafe", text: "#1d4ed8" },
-  high: { bg: "#ffedd5", text: "#c2410c" },
-  urgent: { bg: "#fee2e2", text: "#b91c1c" },
+const PRIORITY_TONE: Record<string, "success" | "brand" | "gold" | "danger"> = {
+  low: "success",
+  normal: "brand",
+  high: "gold",
+  urgent: "danger",
 };
 
 function formatTimeAgo(d: string) {
@@ -182,205 +186,216 @@ export default function TeacherDoubtDetailScreen() {
     ]);
   };
 
-  const priorityColor = PRIORITY_COLORS[doubt.priority];
+  const canSend = !posting && (!!replyText.trim() || !!replyImage || !!replyPdf);
 
   return (
-    <SafeAreaView className="flex-1 bg-background">
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.paper }} edges={["top"]}>
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
-        <View className="flex-row items-center gap-3 px-5 pt-2 pb-3 border-b border-border">
-          <TouchableOpacity onPress={() => navigation.goBack()} className="w-9 h-9 bg-secondary rounded-lg items-center justify-center">
-            <ArrowLeft size={18} color="#374151" />
-          </TouchableOpacity>
-          <Text className="font-bold text-foreground text-base flex-1">Doubt Details & Reply</Text>
-          <TouchableOpacity onPress={handleDeleteDoubt} className="p-2">
-            <Trash2 size={18} color="#dc2626" />
-          </TouchableOpacity>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 20, paddingTop: 8, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+          <AnimatedPressable
+            pressScale={0.9}
+            onPress={() => navigation.goBack()}
+            style={{ width: 36, height: 36, borderRadius: radius.sm, backgroundColor: colors.surfaceMuted, alignItems: "center", justifyContent: "center" }}
+          >
+            <ArrowLeft size={18} color={colors.ink} />
+          </AnimatedPressable>
+          <Text style={{ ...type.h3, fontSize: 16, color: colors.ink, flex: 1 }}>Doubt Details & Reply</Text>
+          <AnimatedPressable pressScale={0.9} onPress={handleDeleteDoubt} style={{ padding: 6 }}>
+            <Trash2 size={18} color={colors.coral} />
+          </AnimatedPressable>
         </View>
 
         <FlatList
           data={sortReplies(doubt.replies)}
           keyExtractor={(r) => r.id}
           contentContainerStyle={{ padding: 20, flexGrow: 1 }}
+          showsVerticalScrollIndicator={false}
           ListHeaderComponent={
-            <View className="mb-4 pb-4 border-b border-border">
-              <View className="flex-row items-center gap-2.5 mb-3">
-                <View className="w-10 h-10 rounded-full bg-purple-500 items-center justify-center overflow-hidden">
+            <Animated.View entering={FadeIn.duration(300)} style={{ marginBottom: spacing.lg, paddingBottom: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: spacing.md }}>
+                <View style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: colors.indigo, alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
                   {doubt.student.avatar ? (
-                    <Image source={{ uri: doubt.student.avatar }} className="w-full h-full" />
+                    <Image source={{ uri: doubt.student.avatar }} style={{ width: "100%", height: "100%" }} />
                   ) : (
-                    <Text className="text-white font-bold text-sm">{doubt.student.name.charAt(0).toUpperCase()}</Text>
+                    <Text style={{ color: colors.white, fontFamily: fonts.bodySemibold, fontSize: 14 }}>{doubt.student.name.charAt(0).toUpperCase()}</Text>
                   )}
                 </View>
                 <View>
-                  <Text className="font-bold text-foreground text-sm">{doubt.student.name}</Text>
-                  <Text className="text-xs text-muted-foreground">{doubt.subject} • {formatTimeAgo(doubt.createdAt)}</Text>
+                  <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 14, color: colors.ink }}>{doubt.student.name}</Text>
+                  <Text style={{ ...type.caption, color: colors.inkMuted }}>{doubt.subject} • {formatTimeAgo(doubt.createdAt)}</Text>
                 </View>
               </View>
 
-              <Text className="font-bold text-foreground text-lg mb-1.5">{doubt.title}</Text>
-              <Text className="text-sm text-muted-foreground leading-relaxed mb-3">{doubt.description}</Text>
+              <Text style={{ ...type.h3, fontSize: 18, color: colors.ink, marginBottom: 6 }}>{doubt.title}</Text>
+              <Text style={{ ...type.body, fontSize: 14, color: colors.inkMuted, lineHeight: 21, marginBottom: spacing.md }}>{doubt.description}</Text>
 
               {doubt.imageUrl && (
-                <Image source={{ uri: doubt.imageUrl }} className="w-full rounded-xl mb-2" style={{ height: 180 }} resizeMode="cover" />
+                <Image source={{ uri: doubt.imageUrl }} style={{ width: "100%", height: 180, borderRadius: radius.md, marginBottom: spacing.sm }} resizeMode="cover" />
               )}
               {doubt.pdfUrl && (
-                <TouchableOpacity
+                <AnimatedPressable
                   onPress={() => Linking.openURL(doubt.pdfUrl!)}
-                  className="flex-row items-center gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2 self-start mb-3"
+                  style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: colors.coralTint, borderRadius: radius.sm, paddingHorizontal: 12, paddingVertical: 9, alignSelf: "flex-start", marginBottom: spacing.md }}
                 >
-                  <FileText size={14} color="#dc2626" />
-                  <Text className="text-xs font-semibold text-red-700">{doubt.pdfName || "Download PDF"}</Text>
-                </TouchableOpacity>
+                  <FileText size={14} color={colors.coral} />
+                  <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 12.5, color: colors.coral }}>{doubt.pdfName || "Download PDF"}</Text>
+                </AnimatedPressable>
               )}
 
-              <View className="flex-row flex-wrap gap-2 mb-1">
+              <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8, marginBottom: spacing.md }}>
                 {!doubt.isSolved && (
-                  <TouchableOpacity
+                  <AnimatedPressable
+                    pressScale={0.97}
                     onPress={handleMarkSolved}
-                    className="flex-1 bg-green-600 rounded-xl py-2.5 flex-row items-center justify-center gap-1.5"
-                    style={{ minWidth: "45%" }}
+                    style={{
+                      flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7,
+                      backgroundColor: colors.mint, borderRadius: radius.md, paddingVertical: 11, paddingHorizontal: 16,
+                      shadowColor: colors.mint, shadowOpacity: 0.35, shadowRadius: 10, shadowOffset: { width: 0, height: 5 }, elevation: 5,
+                    }}
                   >
-                    <CheckCircle2 size={14} color="#fff" />
-                    <Text className="text-white text-xs font-semibold">Mark as Solved</Text>
-                  </TouchableOpacity>
+                    <CheckCircle2 size={15} color={colors.white} />
+                    <Text style={{ color: colors.white, fontFamily: fonts.bodySemibold, fontSize: 13 }}>Mark as Solved</Text>
+                  </AnimatedPressable>
                 )}
-                {priorityColor && (
-                  <View className="px-2.5 py-1 rounded-full self-start" style={{ backgroundColor: priorityColor.bg }}>
-                    <Text className="text-xs font-semibold" style={{ color: priorityColor.text }}>{doubt.priority}</Text>
-                  </View>
-                )}
-                {doubt.isSolved && (
-                  <View className="flex-row items-center gap-1 bg-green-100 px-2.5 py-1 rounded-full self-start">
-                    <CheckCircle2 size={12} color="#15803d" />
-                    <Text className="text-xs font-semibold text-green-700">Solved</Text>
-                  </View>
-                )}
+                {PRIORITY_TONE[doubt.priority] && <Badge label={doubt.priority} tone={PRIORITY_TONE[doubt.priority]} />}
+                {doubt.isSolved && <Badge label="Solved" tone="success" />}
               </View>
 
-              <Text className="font-bold text-foreground text-sm mt-4">Replies ({doubt.replies.length})</Text>
-            </View>
+              <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 13.5, color: colors.ink, marginTop: 4 }}>Replies ({doubt.replies.length})</Text>
+            </Animated.View>
           }
           ListEmptyComponent={
-            <View className="items-center py-8">
-              <Text className="text-muted-foreground text-sm">No replies yet. Be the first to help!</Text>
+            <View style={{ alignItems: "center", paddingVertical: 32 }}>
+              <Text style={{ ...type.body, fontSize: 13, color: colors.inkMuted }}>No replies yet. Be the first to help!</Text>
             </View>
           }
-          renderItem={({ item: reply }) => {
-            const bg =
-              reply.user.role === "TEACHER" ? "#faf5ff" : reply.isPinned ? "#fffbeb" : reply.isAccepted ? "#f0fdf4" : "#f9fafb";
-            const border =
-              reply.user.role === "TEACHER" ? "#e9d5ff" : reply.isPinned ? "#fde68a" : reply.isAccepted ? "#bbf7d0" : "#e5e7eb";
+          renderItem={({ item: reply, index }) => {
+            const isTeacher = reply.user.role === "TEACHER";
+            const bg = isTeacher ? colors.goldTint : reply.isPinned ? colors.goldTint : reply.isAccepted ? colors.mintTint : colors.surface;
+            const border = isTeacher ? "rgba(201,154,46,0.35)" : reply.isPinned ? "rgba(201,154,46,0.35)" : reply.isAccepted ? "rgba(47,143,91,0.3)" : colors.border;
             return (
-              <View className="rounded-xl border-2 p-3.5 mb-3" style={{ backgroundColor: bg, borderColor: border }}>
-                <View className="flex-row items-start gap-2.5 mb-2">
-                  <View className={`w-8 h-8 rounded-full items-center justify-center overflow-hidden ${reply.user.role === "TEACHER" ? "bg-purple-500" : "bg-blue-500"}`}>
-                    {reply.user.avatar ? (
-                      <Image source={{ uri: reply.user.avatar }} className="w-full h-full" />
-                    ) : (
-                      <Text className="text-white font-bold text-xs">{reply.user.name.charAt(0).toUpperCase()}</Text>
-                    )}
-                  </View>
-                  <View className="flex-1">
-                    <View className="flex-row items-center flex-wrap gap-1.5">
-                      <Text className="font-semibold text-sm text-foreground">{reply.user.name}</Text>
-                      {reply.user.role === "TEACHER" && (
-                        <View className="bg-purple-600 px-1.5 py-0.5 rounded-full">
-                          <Text className="text-[10px] font-semibold text-white">Teacher</Text>
-                        </View>
+              <Animated.View entering={FadeInUp.duration(280).delay(Math.min(index, 6) * 45)} layout={LinearTransition.duration(200)}>
+                <View style={{ borderRadius: radius.md, borderWidth: 1.5, padding: spacing.md, marginBottom: spacing.md, backgroundColor: bg, borderColor: border }}>
+                  <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 9, marginBottom: spacing.sm }}>
+                    <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: isTeacher ? colors.gold : colors.indigo, alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+                      {reply.user.avatar ? (
+                        <Image source={{ uri: reply.user.avatar }} style={{ width: "100%", height: "100%" }} />
+                      ) : (
+                        <Text style={{ color: colors.white, fontFamily: fonts.bodySemibold, fontSize: 12 }}>{reply.user.name.charAt(0).toUpperCase()}</Text>
                       )}
-                      {reply.isPinned && <Pin size={11} color="#d97706" fill="#d97706" />}
-                      {reply.isAccepted && <CheckCircle2 size={11} color="#16a34a" fill="#16a34a" />}
                     </View>
-                    <Text className="text-[10px] text-muted-foreground">{formatTimeAgo(reply.createdAt)}</Text>
+                    <View style={{ flex: 1 }}>
+                      <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 6 }}>
+                        <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 13.5, color: colors.ink }}>{reply.user.name}</Text>
+                        {isTeacher && <Badge label="Teacher" tone="gold" />}
+                        {reply.isPinned && (
+                          <Animated.View entering={ZoomIn.duration(250)}>
+                            <Pin size={11} color={colors.gold} fill={colors.gold} />
+                          </Animated.View>
+                        )}
+                        {reply.isAccepted && <CheckCircle2 size={11} color={colors.mint} fill={colors.mint} />}
+                      </View>
+                      <Text style={{ fontSize: 10, fontFamily: fonts.body, color: colors.inkFaint, marginTop: 1 }}>{formatTimeAgo(reply.createdAt)}</Text>
+                    </View>
                   </View>
-                </View>
 
-                <Text className="text-sm text-foreground mb-2">{reply.content}</Text>
+                  <Text style={{ ...type.body, fontSize: 13.5, color: colors.ink, lineHeight: 19, marginBottom: spacing.sm }}>{reply.content}</Text>
 
-                {reply.imageUrl && (
-                  <Image source={{ uri: reply.imageUrl }} className="w-full rounded-lg mb-2" style={{ height: 140 }} resizeMode="cover" />
-                )}
-                {reply.pdfUrl && (
-                  <TouchableOpacity
-                    onPress={() => Linking.openURL(reply.pdfUrl!)}
-                    className="flex-row items-center gap-1.5 bg-red-50 border border-red-200 rounded-lg px-2.5 py-1.5 self-start mb-2"
-                  >
-                    <FileText size={12} color="#dc2626" />
-                    <Text className="text-xs font-semibold text-red-700">{reply.pdfName || "Download PDF"}</Text>
-                  </TouchableOpacity>
-                )}
-
-                <View className="flex-row items-center gap-4">
-                  <View className="flex-row items-center gap-1">
-                    <ThumbsUp size={13} color="#6b7280" />
-                    <Text className="text-xs font-semibold text-muted-foreground">{reply.upvotes}</Text>
-                  </View>
-                  {!reply.isPinned && (
-                    <TouchableOpacity onPress={() => handlePinReply(reply.id)} className="flex-row items-center gap-1">
-                      <Pin size={13} color="#d97706" />
-                      <Text className="text-xs font-semibold text-amber-600">Pin</Text>
-                    </TouchableOpacity>
+                  {reply.imageUrl && (
+                    <Image source={{ uri: reply.imageUrl }} style={{ width: "100%", height: 140, borderRadius: radius.sm, marginBottom: spacing.sm }} resizeMode="cover" />
                   )}
-                  <TouchableOpacity onPress={() => handleDeleteReply(reply.id)} className="ml-auto">
-                    <Text className="text-xs font-semibold text-red-500">Delete</Text>
-                  </TouchableOpacity>
+                  {reply.pdfUrl && (
+                    <AnimatedPressable
+                      onPress={() => Linking.openURL(reply.pdfUrl!)}
+                      style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: colors.coralTint, borderRadius: radius.sm, paddingHorizontal: 10, paddingVertical: 7, alignSelf: "flex-start", marginBottom: spacing.sm }}
+                    >
+                      <FileText size={12} color={colors.coral} />
+                      <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 11.5, color: colors.coral }}>{reply.pdfName || "Download PDF"}</Text>
+                    </AnimatedPressable>
+                  )}
+
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 16 }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+                      <ThumbsUp size={13} color={colors.inkMuted} />
+                      <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 11.5, color: colors.inkMuted }}>{reply.upvotes}</Text>
+                    </View>
+                    {!reply.isPinned && (
+                      <AnimatedPressable pressScale={0.9} onPress={() => handlePinReply(reply.id)} style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+                        <Pin size={13} color={colors.gold} />
+                        <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 11.5, color: colors.gold }}>Pin</Text>
+                      </AnimatedPressable>
+                    )}
+                    <AnimatedPressable pressScale={0.9} onPress={() => handleDeleteReply(reply.id)} style={{ marginLeft: "auto" }}>
+                      <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 11.5, color: colors.coral }}>Delete</Text>
+                    </AnimatedPressable>
+                  </View>
                 </View>
-              </View>
+              </Animated.View>
             );
           }}
         />
 
-        <View className="p-4 border-t border-border">
+        {/* Reply composer */}
+        <View style={{ padding: spacing.md, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.paper }}>
           {(replyImage || replyPdf) && (
-            <View className="flex-row gap-2 mb-2">
+            <View style={{ flexDirection: "row", gap: 8, marginBottom: spacing.sm }}>
               {replyImage && (
-                <View className="flex-row items-center gap-1.5 bg-purple-50 border border-purple-200 rounded-lg px-2 py-1.5">
-                  <ImageIcon size={12} color="#7c3aed" />
-                  <Text className="text-xs text-purple-700" numberOfLines={1} style={{ maxWidth: 100 }}>{replyImage.name}</Text>
-                  <TouchableOpacity onPress={() => setReplyImage(null)}><X size={12} color="#dc2626" /></TouchableOpacity>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: colors.indigoTint, borderRadius: radius.sm, paddingHorizontal: 8, paddingVertical: 7 }}>
+                  <ImageIcon size={12} color={colors.indigo} />
+                  <Text style={{ fontFamily: fonts.body, fontSize: 11.5, color: colors.indigo, maxWidth: 100 }} numberOfLines={1}>{replyImage.name}</Text>
+                  <AnimatedPressable pressScale={0.9} onPress={() => setReplyImage(null)}><X size={12} color={colors.coral} /></AnimatedPressable>
                 </View>
               )}
               {replyPdf && (
-                <View className="flex-row items-center gap-1.5 bg-red-50 border border-red-200 rounded-lg px-2 py-1.5">
-                  <FileText size={12} color="#b91c1c" />
-                  <Text className="text-xs text-red-700" numberOfLines={1} style={{ maxWidth: 100 }}>{replyPdf.name}</Text>
-                  <TouchableOpacity onPress={() => setReplyPdf(null)}><X size={12} color="#dc2626" /></TouchableOpacity>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: colors.coralTint, borderRadius: radius.sm, paddingHorizontal: 8, paddingVertical: 7 }}>
+                  <FileText size={12} color={colors.coral} />
+                  <Text style={{ fontFamily: fonts.body, fontSize: 11.5, color: colors.coral, maxWidth: 100 }} numberOfLines={1}>{replyPdf.name}</Text>
+                  <AnimatedPressable pressScale={0.9} onPress={() => setReplyPdf(null)}><X size={12} color={colors.coral} /></AnimatedPressable>
                 </View>
               )}
             </View>
           )}
-          <Text className="text-xs font-semibold text-foreground mb-2">Your Response</Text>
-          <View className="flex-row items-end gap-2">
+          <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 12, color: colors.inkMuted, marginBottom: spacing.sm }}>Your Response</Text>
+          <View style={{ flexDirection: "row", gap: 8, alignItems: "flex-end" }}>
             <TextInput
               value={replyText}
               onChangeText={setReplyText}
               placeholder="Type your answer here…"
+              placeholderTextColor={colors.inkFaint}
               multiline
-              className="flex-1 border-2 border-border rounded-xl px-3 py-2.5 text-foreground text-sm"
-              style={{ maxHeight: 80 }}
+              style={{
+                flex: 1, borderWidth: 1.5, borderColor: colors.border, borderRadius: radius.md,
+                paddingHorizontal: spacing.md, paddingVertical: 10, color: colors.ink,
+                fontFamily: fonts.body, fontSize: 14, maxHeight: 80, backgroundColor: colors.surface,
+              }}
             />
-            <TouchableOpacity
+            <AnimatedPressable
+              pressScale={0.9}
               onPress={handlePickImage}
               disabled={uploadingImage}
-              className="w-10 h-10 border-2 border-border rounded-xl items-center justify-center"
+              style={{ width: 40, height: 40, borderWidth: 1.5, borderColor: colors.border, borderRadius: radius.md, alignItems: "center", justifyContent: "center" }}
             >
-              {uploadingImage ? <ActivityIndicator size="small" color="#7c3aed" /> : <ImageIcon size={16} color="#6b7280" />}
-            </TouchableOpacity>
-            <TouchableOpacity
+              {uploadingImage ? <ActivityIndicator size="small" color={colors.indigo} /> : <ImageIcon size={16} color={colors.inkMuted} />}
+            </AnimatedPressable>
+            <AnimatedPressable
+              pressScale={0.9}
               onPress={handlePickPdf}
               disabled={uploadingPdf}
-              className="w-10 h-10 border-2 border-border rounded-xl items-center justify-center"
+              style={{ width: 40, height: 40, borderWidth: 1.5, borderColor: colors.border, borderRadius: radius.md, alignItems: "center", justifyContent: "center" }}
             >
-              {uploadingPdf ? <ActivityIndicator size="small" color="#dc2626" /> : <FileText size={16} color="#6b7280" />}
-            </TouchableOpacity>
-            <TouchableOpacity
+              {uploadingPdf ? <ActivityIndicator size="small" color={colors.coral} /> : <FileText size={16} color={colors.inkMuted} />}
+            </AnimatedPressable>
+            <AnimatedPressable
+              pressScale={0.9}
               onPress={handlePostReply}
-              disabled={posting || (!replyText.trim() && !replyImage && !replyPdf)}
-              className="w-10 h-10 bg-purple-600 rounded-xl items-center justify-center"
-              style={{ opacity: posting || (!replyText.trim() && !replyImage && !replyPdf) ? 0.5 : 1 }}
+              disabled={!canSend}
+              style={{
+                width: 40, height: 40, borderRadius: radius.md, alignItems: "center", justifyContent: "center",
+                backgroundColor: colors.indigo, opacity: canSend ? 1 : 0.5,
+              }}
             >
-              {posting ? <ActivityIndicator size="small" color="#fff" /> : <Send size={16} color="#fff" />}
-            </TouchableOpacity>
+              {posting ? <ActivityIndicator size="small" color={colors.white} /> : <Send size={16} color={colors.white} />}
+            </AnimatedPressable>
           </View>
         </View>
       </KeyboardAvoidingView>

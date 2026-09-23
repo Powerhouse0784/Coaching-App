@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import {
-  View, Text, TextInput, TouchableOpacity, ScrollView,
-  ActivityIndicator, Alert, Image, KeyboardAvoidingView, Platform,
+  View, Text, TextInput, ScrollView, ActivityIndicator, Alert,
+  Image, KeyboardAvoidingView, Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ArrowLeft, Camera, Save, Info } from "lucide-react-native";
@@ -10,8 +10,26 @@ import api from "@/lib/api";
 import { pickAndUploadImage } from "@/lib/upload";
 import { useAuthStore } from "@/store/authStore";
 import type { ProfileData } from "@/types";
+import Button from "@/components/ui/Button";
+import AnimatedPressable from "@/components/ui/AnimatedPressable";
+import { colors, fonts, radius, spacing, type } from "@/constants/theme";
 
 type Tab = "basic" | "professional" | "social";
+
+const fieldStyle = {
+  borderWidth: 1.5, borderColor: colors.border, borderRadius: radius.md,
+  paddingHorizontal: spacing.md, paddingVertical: 10, color: colors.ink,
+  fontFamily: fonts.body, fontSize: 14, backgroundColor: colors.surface,
+};
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <View style={{ marginBottom: spacing.lg }}>
+      <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 13, color: colors.ink, marginBottom: 6 }}>{label}</Text>
+      {children}
+    </View>
+  );
+}
 
 export default function EditProfileScreen() {
   const navigation = useNavigation();
@@ -42,7 +60,7 @@ export default function EditProfileScreen() {
 
   useEffect(() => {
     (async () => {
-        try {
+      try {
         const { data } = await api.get(`/api/user/profile`);
         const p: ProfileData = data.user || data;
         setProfile(p);
@@ -73,8 +91,8 @@ export default function EditProfileScreen() {
   const handlePickAvatar = async () => {
     setUploadingAvatar(true);
     try {
-        const result = await pickAndUploadImage();
-        if (result) setAvatarUrl(result.url);
+      const result = await pickAndUploadImage();
+      if (result) setAvatarUrl(result.url);
     } catch (err: any) {
       Alert.alert("Upload failed", err.message || "Something went wrong");
     } finally {
@@ -85,7 +103,7 @@ export default function EditProfileScreen() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const { data } = await api.put("/api/user/profile", {
+      await api.put("/api/user/profile", {
         name, phone, bio, location, dateOfBirth: dateOfBirth || null,
         qualification, experience, subjects, specialization, teachingStyle,
         website, linkedin, twitter, instagram,
@@ -103,8 +121,8 @@ export default function EditProfileScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView className="flex-1 bg-background items-center justify-center">
-        <ActivityIndicator size="large" color="#6366f1" />
+      <SafeAreaView style={{ flex: 1, backgroundColor: colors.paper, alignItems: "center", justifyContent: "center" }}>
+        <ActivityIndicator size="large" color={colors.indigo} />
       </SafeAreaView>
     );
   }
@@ -112,136 +130,128 @@ export default function EditProfileScreen() {
   const tabs: { id: Tab; label: string }[] = [
     { id: "basic", label: "Basic Info" },
     { id: "professional", label: "Professional" },
-    { id: "social", label: "Social Profiles" },
+    { id: "social", label: "Social" },
   ];
 
   return (
-    <SafeAreaView className="flex-1 bg-background">
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.paper }} edges={["top"]}>
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
-        <View className="flex-row items-center gap-3 px-5 pt-2 pb-3 border-b border-border">
-          <TouchableOpacity onPress={() => navigation.goBack()} className="w-9 h-9 bg-secondary rounded-lg items-center justify-center">
-            <ArrowLeft size={18} color="#374151" />
-          </TouchableOpacity>
-          <Text className="font-bold text-foreground text-base">Edit Profile</Text>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 20, paddingTop: 8, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+          <AnimatedPressable
+            pressScale={0.9}
+            onPress={() => navigation.goBack()}
+            style={{ width: 36, height: 36, borderRadius: radius.sm, backgroundColor: colors.surfaceMuted, alignItems: "center", justifyContent: "center" }}
+          >
+            <ArrowLeft size={18} color={colors.ink} />
+          </AnimatedPressable>
+          <Text style={{ ...type.h3, fontSize: 16, color: colors.ink }}>Edit Profile</Text>
         </View>
 
-        <ScrollView contentContainerStyle={{ padding: 20 }}>
+        <ScrollView contentContainerStyle={{ padding: spacing.lg }} showsVerticalScrollIndicator={false}>
           {/* Avatar */}
-          <View className="items-center mb-5">
-            <TouchableOpacity onPress={handlePickAvatar} disabled={uploadingAvatar} className="relative">
-              <View className="w-24 h-24 rounded-full bg-indigo-500 items-center justify-center overflow-hidden">
+          <View style={{ alignItems: "center", marginBottom: spacing.xl }}>
+            <AnimatedPressable pressScale={0.95} onPress={handlePickAvatar} disabled={uploadingAvatar} style={{ position: "relative" }}>
+              <View style={{ width: 96, height: 96, borderRadius: 48, backgroundColor: colors.indigo, alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
                 {avatarUrl ? (
-                  <Image source={{ uri: avatarUrl }} className="w-full h-full" />
+                  <Image source={{ uri: avatarUrl }} style={{ width: "100%", height: "100%" }} />
                 ) : (
-                  <Text className="text-white font-bold text-3xl">{name?.charAt(0).toUpperCase() || "?"}</Text>
+                  <Text style={{ color: colors.white, fontFamily: fonts.displayBold, fontSize: 34 }}>{name?.charAt(0).toUpperCase() || "?"}</Text>
                 )}
               </View>
-              <View className="absolute bottom-0 right-0 w-8 h-8 bg-indigo-600 rounded-full items-center justify-center border-2 border-background">
-                {uploadingAvatar ? <ActivityIndicator size="small" color="#fff" /> : <Camera size={14} color="#fff" />}
+              <View style={{ position: "absolute", bottom: 0, right: 0, width: 32, height: 32, borderRadius: 16, backgroundColor: colors.indigo, alignItems: "center", justifyContent: "center", borderWidth: 2.5, borderColor: colors.paper }}>
+                {uploadingAvatar ? <ActivityIndicator size="small" color={colors.white} /> : <Camera size={14} color={colors.white} />}
               </View>
-            </TouchableOpacity>
-            <Text className="text-xs text-muted-foreground mt-2">Tap to change photo</Text>
+            </AnimatedPressable>
+            <Text style={{ ...type.caption, color: colors.inkMuted, marginTop: spacing.sm }}>Tap to change photo</Text>
           </View>
 
           {/* Tabs */}
-          <View className="flex-row bg-secondary rounded-xl p-1 mb-5">
-            {tabs.map((t) => (
-              <TouchableOpacity
-                key={t.id}
-                onPress={() => setTab(t.id)}
-                className="flex-1 items-center py-2.5 rounded-lg"
-                style={{ backgroundColor: tab === t.id ? "#6366f1" : "transparent" }}
-              >
-                <Text className={`text-xs font-semibold ${tab === t.id ? "text-white" : "text-muted-foreground"}`}>{t.label}</Text>
-              </TouchableOpacity>
-            ))}
+          <View style={{ flexDirection: "row", backgroundColor: colors.surfaceMuted, borderRadius: radius.md, padding: 3, marginBottom: spacing.xl }}>
+            {tabs.map((t) => {
+              const active = tab === t.id;
+              return (
+                <AnimatedPressable
+                  key={t.id}
+                  pressScale={0.97}
+                  onPress={() => setTab(t.id)}
+                  style={{ flex: 1, alignItems: "center", paddingVertical: 9, borderRadius: radius.sm, backgroundColor: active ? colors.indigo : "transparent" }}
+                >
+                  <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 12, color: active ? colors.white : colors.inkMuted }}>{t.label}</Text>
+                </AnimatedPressable>
+              );
+            })}
           </View>
 
           {tab === "basic" && (
-            <View className="gap-4">
-              <View>
-                <Text className="text-sm font-semibold text-foreground mb-1.5">Full Name</Text>
-                <TextInput value={name} onChangeText={setName} className="border-2 border-border rounded-xl px-3 py-2.5 text-foreground text-sm" />
-              </View>
-              <View>
-                <Text className="text-sm font-semibold text-foreground mb-1.5">Email</Text>
-                <TextInput value={profile?.email} editable={false} className="border-2 border-border rounded-xl px-3 py-2.5 text-muted-foreground text-sm bg-secondary" />
-              </View>
-              <View>
-                <Text className="text-sm font-semibold text-foreground mb-1.5">Phone</Text>
-                <TextInput value={phone} onChangeText={setPhone} keyboardType="phone-pad" className="border-2 border-border rounded-xl px-3 py-2.5 text-foreground text-sm" />
-              </View>
-              <View>
-                <Text className="text-sm font-semibold text-foreground mb-1.5">Location</Text>
-                <TextInput value={location} onChangeText={setLocation} placeholder="City, State" className="border-2 border-border rounded-xl px-3 py-2.5 text-foreground text-sm" />
-              </View>
-              <View>
-                <Text className="text-sm font-semibold text-foreground mb-1.5">Date of Birth</Text>
-                <TextInput value={dateOfBirth} onChangeText={setDateOfBirth} placeholder="YYYY-MM-DD" className="border-2 border-border rounded-xl px-3 py-2.5 text-foreground text-sm" />
-              </View>
-              <View>
-                <Text className="text-sm font-semibold text-foreground mb-1.5">Bio</Text>
+            <View>
+              <Field label="Full Name">
+                <TextInput value={name} onChangeText={setName} style={fieldStyle} placeholderTextColor={colors.inkFaint} />
+              </Field>
+              <Field label="Email">
+                <TextInput value={profile?.email} editable={false} style={[fieldStyle, { color: colors.inkMuted, backgroundColor: colors.surfaceMuted }]} />
+              </Field>
+              <Field label="Phone">
+                <TextInput value={phone} onChangeText={setPhone} keyboardType="phone-pad" style={fieldStyle} placeholderTextColor={colors.inkFaint} />
+              </Field>
+              <Field label="Location">
+                <TextInput value={location} onChangeText={setLocation} placeholder="City, State" style={fieldStyle} placeholderTextColor={colors.inkFaint} />
+              </Field>
+              <Field label="Date of Birth">
+                <TextInput value={dateOfBirth} onChangeText={setDateOfBirth} placeholder="YYYY-MM-DD" style={fieldStyle} placeholderTextColor={colors.inkFaint} />
+              </Field>
+              <Field label="Bio">
                 <TextInput
                   value={bio} onChangeText={setBio} multiline numberOfLines={4}
                   placeholder="Tell us a bit about yourself…"
-                  className="border-2 border-border rounded-xl px-3 py-2.5 text-foreground text-sm"
-                  style={{ textAlignVertical: "top", minHeight: 90 }}
+                  style={[fieldStyle, { textAlignVertical: "top", minHeight: 90 }]}
+                  placeholderTextColor={colors.inkFaint}
                 />
-              </View>
+              </Field>
             </View>
           )}
 
           {tab === "professional" && (
-            <View className="gap-4">
-              <View>
-                <Text className="text-sm font-semibold text-foreground mb-1.5">Qualification</Text>
-                <TextInput value={qualification} onChangeText={setQualification} placeholder="e.g., M.Sc Physics" className="border-2 border-border rounded-xl px-3 py-2.5 text-foreground text-sm" />
-              </View>
-              <View>
-                <Text className="text-sm font-semibold text-foreground mb-1.5">Experience</Text>
-                <TextInput value={experience} onChangeText={setExperience} placeholder="e.g., 5 years" className="border-2 border-border rounded-xl px-3 py-2.5 text-foreground text-sm" />
-              </View>
-              <View>
-                <Text className="text-sm font-semibold text-foreground mb-1.5">Subjects</Text>
-                <TextInput value={subjects} onChangeText={setSubjects} placeholder="e.g., Physics, Mathematics" className="border-2 border-border rounded-xl px-3 py-2.5 text-foreground text-sm" />
-              </View>
-              <View>
-                <Text className="text-sm font-semibold text-foreground mb-1.5">Specialization</Text>
-                <TextInput value={specialization} onChangeText={setSpecialization} className="border-2 border-border rounded-xl px-3 py-2.5 text-foreground text-sm" />
-              </View>
-              <View>
-                <Text className="text-sm font-semibold text-foreground mb-1.5">Teaching Style</Text>
+            <View>
+              <Field label="Qualification">
+                <TextInput value={qualification} onChangeText={setQualification} placeholder="e.g., M.Sc Physics" style={fieldStyle} placeholderTextColor={colors.inkFaint} />
+              </Field>
+              <Field label="Experience">
+                <TextInput value={experience} onChangeText={setExperience} placeholder="e.g., 5 years" style={fieldStyle} placeholderTextColor={colors.inkFaint} />
+              </Field>
+              <Field label="Subjects">
+                <TextInput value={subjects} onChangeText={setSubjects} placeholder="e.g., Physics, Mathematics" style={fieldStyle} placeholderTextColor={colors.inkFaint} />
+              </Field>
+              <Field label="Specialization">
+                <TextInput value={specialization} onChangeText={setSpecialization} style={fieldStyle} placeholderTextColor={colors.inkFaint} />
+              </Field>
+              <Field label="Teaching Style">
                 <TextInput
                   value={teachingStyle} onChangeText={setTeachingStyle} multiline numberOfLines={3}
-                  className="border-2 border-border rounded-xl px-3 py-2.5 text-foreground text-sm"
-                  style={{ textAlignVertical: "top", minHeight: 70 }}
+                  style={[fieldStyle, { textAlignVertical: "top", minHeight: 70 }]}
+                  placeholderTextColor={colors.inkFaint}
                 />
-              </View>
+              </Field>
             </View>
           )}
 
           {tab === "social" && (
-            <View className="gap-4">
-              <View>
-                <Text className="text-sm font-semibold text-foreground mb-1.5">Website</Text>
-                <TextInput value={website} onChangeText={setWebsite} autoCapitalize="none" placeholder="https://…" className="border-2 border-border rounded-xl px-3 py-2.5 text-foreground text-sm" />
-              </View>
-              <View>
-                <Text className="text-sm font-semibold text-foreground mb-1.5">LinkedIn</Text>
-                <TextInput value={linkedin} onChangeText={setLinkedin} autoCapitalize="none" placeholder="https://linkedin.com/in/…" className="border-2 border-border rounded-xl px-3 py-2.5 text-foreground text-sm" />
-              </View>
-              <View>
-                <Text className="text-sm font-semibold text-foreground mb-1.5">Twitter / X</Text>
-                <TextInput value={twitter} onChangeText={setTwitter} autoCapitalize="none" placeholder="https://x.com/…" className="border-2 border-border rounded-xl px-3 py-2.5 text-foreground text-sm" />
-              </View>
-              <View>
-                <Text className="text-sm font-semibold text-foreground mb-1.5">Instagram</Text>
-                <TextInput value={instagram} onChangeText={setInstagram} autoCapitalize="none" placeholder="https://instagram.com/…" className="border-2 border-border rounded-xl px-3 py-2.5 text-foreground text-sm" />
-              </View>
+            <View>
+              <Field label="Website">
+                <TextInput value={website} onChangeText={setWebsite} autoCapitalize="none" placeholder="https://…" style={fieldStyle} placeholderTextColor={colors.inkFaint} />
+              </Field>
+              <Field label="LinkedIn">
+                <TextInput value={linkedin} onChangeText={setLinkedin} autoCapitalize="none" placeholder="https://linkedin.com/in/…" style={fieldStyle} placeholderTextColor={colors.inkFaint} />
+              </Field>
+              <Field label="Twitter / X">
+                <TextInput value={twitter} onChangeText={setTwitter} autoCapitalize="none" placeholder="https://x.com/…" style={fieldStyle} placeholderTextColor={colors.inkFaint} />
+              </Field>
+              <Field label="Instagram">
+                <TextInput value={instagram} onChangeText={setInstagram} autoCapitalize="none" placeholder="https://instagram.com/…" style={fieldStyle} placeholderTextColor={colors.inkFaint} />
+              </Field>
 
-              <View className="flex-row gap-2.5 bg-indigo-50 border-2 border-indigo-200 rounded-xl p-3.5 mt-2">
-                <Info size={16} color="#6366f1" style={{ marginTop: 2 }} />
-                <Text className="text-xs text-indigo-700 flex-1">
+              <View style={{ flexDirection: "row", gap: 10, backgroundColor: colors.indigoTint, borderRadius: radius.md, padding: spacing.md, marginTop: spacing.sm }}>
+                <Info size={16} color={colors.indigo} style={{ marginTop: 2 }} />
+                <Text style={{ ...type.caption, color: colors.indigoDark, flex: 1, lineHeight: 17 }}>
                   {isTeacher
                     ? "Adding your social profiles helps students and parents learn more about your teaching approach and credentials."
                     : "Connect your social profiles to showcase your personality and interests!"}
@@ -251,23 +261,9 @@ export default function EditProfileScreen() {
           )}
         </ScrollView>
 
-        <View className="flex-row gap-3 p-5 border-t border-border">
-          <TouchableOpacity onPress={() => navigation.goBack()} disabled={saving} className="flex-1 border-2 border-border rounded-xl py-3 items-center">
-            <Text className="font-semibold text-foreground text-sm">Cancel</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={handleSave}
-            disabled={saving}
-            className="flex-1 bg-indigo-600 rounded-xl py-3 items-center flex-row justify-center gap-2"
-            style={{ opacity: saving ? 0.6 : 1 }}
-          >
-            {saving ? <ActivityIndicator color="#fff" size="small" /> : (
-              <>
-                <Save size={15} color="#fff" />
-                <Text className="text-white font-semibold text-sm">Save Changes</Text>
-              </>
-            )}
-          </TouchableOpacity>
+        <View style={{ flexDirection: "row", gap: spacing.sm, padding: spacing.lg, borderTopWidth: 1, borderTopColor: colors.border }}>
+          <Button label="Cancel" variant="ghost" onPress={() => navigation.goBack()} disabled={saving} style={{ flex: 1 }} />
+          <Button label="Save Changes" icon={Save} onPress={handleSave} disabled={saving} loading={saving} style={{ flex: 1 }} />
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>

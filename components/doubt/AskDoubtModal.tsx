@@ -1,11 +1,15 @@
 import { useState } from "react";
 import {
-  View, Text, TextInput, TouchableOpacity, Modal,
-  ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView, Image,
+  View, Text, TextInput, Modal, ActivityIndicator, Alert,
+  KeyboardAvoidingView, Platform, ScrollView, Image, Pressable,
 } from "react-native";
+import Animated, { FadeIn, SlideInDown } from "react-native-reanimated";
 import { X, Send, ImageIcon, FileText, Trash2 } from "lucide-react-native";
 import api from "@/lib/api";
 import { pickAndUploadImage, pickAndUploadPDF, type UploadedFile } from "@/lib/upload";
+import Button from "@/components/ui/Button";
+import AnimatedPressable from "@/components/ui/AnimatedPressable";
+import { colors, fonts, radius, spacing, type } from "@/constants/theme";
 
 interface Props {
   visible: boolean;
@@ -14,11 +18,24 @@ interface Props {
 }
 
 const PRIORITIES = [
-  { value: "low", label: "Low", bg: "#dcfce7", text: "#15803d" },
-  { value: "normal", label: "Normal", bg: "#dbeafe", text: "#1d4ed8" },
-  { value: "high", label: "High", bg: "#ffedd5", text: "#c2410c" },
-  { value: "urgent", label: "Urgent", bg: "#fee2e2", text: "#b91c1c" },
+  { value: "low", label: "Low", tone: "success" as const },
+  { value: "normal", label: "Normal", tone: "brand" as const },
+  { value: "high", label: "High", tone: "gold" as const },
+  { value: "urgent", label: "Urgent", tone: "danger" as const },
 ];
+
+const TONE_BG: Record<string, string> = {
+  success: colors.mintTint,
+  brand: colors.indigoTint,
+  gold: colors.goldTint,
+  danger: colors.coralTint,
+};
+const TONE_TEXT: Record<string, string> = {
+  success: colors.mint,
+  brand: colors.indigo,
+  gold: colors.gold,
+  danger: colors.coral,
+};
 
 export default function AskDoubtModal({ visible, onClose, onSuccess }: Props) {
   const [title, setTitle] = useState("");
@@ -87,151 +104,168 @@ export default function AskDoubtModal({ visible, onClose, onSuccess }: Props) {
     }
   };
 
+  const isValid = !!title.trim() && !!description.trim() && !!subject.trim();
+
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View className="flex-1 bg-black/60 justify-end">
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <Animated.View entering={FadeIn.duration(200)} style={{ flex: 1, backgroundColor: "rgba(23,25,35,0.6)", justifyContent: "flex-end" }}>
+        <Pressable style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }} onPress={onClose} />
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined}>
-          <View className="bg-background rounded-t-3xl" style={{ maxHeight: "88%" }}>
-            <View className="flex-row items-center justify-between p-5 border-b border-border">
-              <Text className="text-lg font-bold text-foreground">Ask a Doubt</Text>
-              <TouchableOpacity onPress={onClose}>
-                <X size={22} color="#9ca3af" />
-              </TouchableOpacity>
+          <Animated.View
+            entering={SlideInDown.duration(280).springify().damping(18)}
+            style={{ backgroundColor: colors.paper, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, maxHeight: "88%" }}
+          >
+            <View style={{ alignItems: "center", paddingTop: 10 }}>
+              <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: colors.border }} />
             </View>
 
-            <ScrollView contentContainerStyle={{ padding: 20 }}>
-              <Text className="text-sm font-semibold text-foreground mb-1.5">Title *</Text>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+              <Text style={{ ...type.h3, fontSize: 17, color: colors.ink }}>Ask a Doubt</Text>
+              <AnimatedPressable pressScale={0.9} onPress={onClose} style={{ width: 32, height: 32, borderRadius: radius.sm, backgroundColor: colors.surfaceMuted, alignItems: "center", justifyContent: "center" }}>
+                <X size={18} color={colors.inkMuted} />
+              </AnimatedPressable>
+            </View>
+
+            <ScrollView contentContainerStyle={{ padding: spacing.lg }} showsVerticalScrollIndicator={false}>
+              <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 13, color: colors.ink, marginBottom: 6 }}>Title *</Text>
               <TextInput
                 value={title}
                 onChangeText={setTitle}
                 placeholder="Brief summary…"
-                className="border-2 border-border rounded-xl px-3 py-2.5 text-foreground text-sm mb-4"
+                placeholderTextColor={colors.inkFaint}
+                style={{
+                  borderWidth: 1.5, borderColor: colors.border, borderRadius: radius.md,
+                  paddingHorizontal: spacing.md, paddingVertical: 10, color: colors.ink,
+                  fontFamily: fonts.body, fontSize: 14, backgroundColor: colors.surface, marginBottom: spacing.lg,
+                }}
               />
 
-              <Text className="text-sm font-semibold text-foreground mb-1.5">Subject *</Text>
+              <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 13, color: colors.ink, marginBottom: 6 }}>Subject *</Text>
               <TextInput
                 value={subject}
                 onChangeText={setSubject}
                 placeholder="e.g., Mathematics, Physics…"
-                className="border-2 border-border rounded-xl px-3 py-2.5 text-foreground text-sm mb-4"
+                placeholderTextColor={colors.inkFaint}
+                style={{
+                  borderWidth: 1.5, borderColor: colors.border, borderRadius: radius.md,
+                  paddingHorizontal: spacing.md, paddingVertical: 10, color: colors.ink,
+                  fontFamily: fonts.body, fontSize: 14, backgroundColor: colors.surface, marginBottom: spacing.lg,
+                }}
               />
 
-              <Text className="text-sm font-semibold text-foreground mb-2">Priority</Text>
-              <View className="flex-row flex-wrap gap-2 mb-4">
-                {PRIORITIES.map((p) => (
-                  <TouchableOpacity
-                    key={p.value}
-                    onPress={() => setPriority(p.value)}
-                    className="px-3.5 py-2 rounded-xl"
-                    style={{ backgroundColor: priority === p.value ? p.bg : "#f3f4f6" }}
-                  >
-                    <Text className="text-xs font-semibold" style={{ color: priority === p.value ? p.text : "#6b7280" }}>
-                      {p.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+              <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 13, color: colors.ink, marginBottom: spacing.sm }}>Priority</Text>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: spacing.lg }}>
+                {PRIORITIES.map((p) => {
+                  const active = priority === p.value;
+                  return (
+                    <AnimatedPressable
+                      key={p.value}
+                      pressScale={0.95}
+                      onPress={() => setPriority(p.value)}
+                      style={{
+                        paddingHorizontal: 14, paddingVertical: 9, borderRadius: radius.md,
+                        backgroundColor: active ? TONE_BG[p.tone] : colors.surfaceMuted,
+                      }}
+                    >
+                      <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 12.5, color: active ? TONE_TEXT[p.tone] : colors.inkMuted }}>
+                        {p.label}
+                      </Text>
+                    </AnimatedPressable>
+                  );
+                })}
               </View>
 
-              <Text className="text-sm font-semibold text-foreground mb-1.5">Description *</Text>
+              <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 13, color: colors.ink, marginBottom: 6 }}>Description *</Text>
               <TextInput
                 value={description}
                 onChangeText={setDescription}
                 placeholder="Explain your doubt in detail…"
+                placeholderTextColor={colors.inkFaint}
                 multiline
                 numberOfLines={4}
-                className="border-2 border-border rounded-xl px-3 py-2.5 text-foreground text-sm mb-4"
-                style={{ textAlignVertical: "top", minHeight: 100 }}
+                style={{
+                  borderWidth: 1.5, borderColor: colors.border, borderRadius: radius.md,
+                  paddingHorizontal: spacing.md, paddingVertical: 10, color: colors.ink,
+                  fontFamily: fonts.body, fontSize: 14, textAlignVertical: "top", minHeight: 100,
+                  backgroundColor: colors.surface, marginBottom: spacing.lg,
+                }}
               />
 
-              <Text className="text-sm font-semibold text-foreground mb-2">Attachments (Optional)</Text>
-              <View className="flex-row gap-3 mb-2">
-                {/* Image */}
-                <View className="flex-1">
+              <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 13, color: colors.ink, marginBottom: spacing.sm }}>Attachments (Optional)</Text>
+              <View style={{ flexDirection: "row", gap: 10 }}>
+                <View style={{ flex: 1 }}>
                   {image ? (
-                    <View className="relative">
-                      <Image source={{ uri: image.url }} className="w-full h-24 rounded-xl" resizeMode="cover" />
-                      <TouchableOpacity
+                    <View>
+                      <Image source={{ uri: image.url }} style={{ width: "100%", height: 96, borderRadius: radius.md }} resizeMode="cover" />
+                      <AnimatedPressable
+                        pressScale={0.9}
                         onPress={() => setImage(null)}
-                        className="absolute top-1.5 right-1.5 bg-red-500 rounded-full p-1"
+                        style={{ position: "absolute", top: 6, right: 6, backgroundColor: colors.coral, borderRadius: 999, padding: 5 }}
                       >
-                        <X size={12} color="#fff" />
-                      </TouchableOpacity>
+                        <X size={12} color={colors.white} />
+                      </AnimatedPressable>
                     </View>
                   ) : (
-                    <TouchableOpacity
+                    <AnimatedPressable
                       onPress={handlePickImage}
                       disabled={uploadingImage}
-                      className="border-2 border-dashed border-border rounded-xl p-4 items-center h-24 justify-center"
+                      style={{ borderWidth: 1.5, borderStyle: "dashed", borderColor: colors.border, borderRadius: radius.md, height: 96, alignItems: "center", justifyContent: "center" }}
                     >
                       {uploadingImage ? (
-                        <ActivityIndicator color="#3b82f6" size="small" />
+                        <ActivityIndicator color={colors.indigo} size="small" />
                       ) : (
                         <>
-                          <ImageIcon size={20} color="#9ca3af" />
-                          <Text className="text-xs text-muted-foreground mt-1">Add Image</Text>
+                          <ImageIcon size={20} color={colors.inkFaint} />
+                          <Text style={{ ...type.caption, color: colors.inkMuted, marginTop: 4 }}>Add Image</Text>
                         </>
                       )}
-                    </TouchableOpacity>
+                    </AnimatedPressable>
                   )}
                 </View>
 
-                {/* PDF */}
-                <View className="flex-1">
+                <View style={{ flex: 1 }}>
                   {pdf ? (
-                    <View className="border-2 border-red-200 bg-red-50 rounded-xl p-3 h-24 justify-center">
-                      <View className="flex-row items-center gap-1.5 mb-1">
-                        <FileText size={14} color="#dc2626" />
-                        <Text className="text-xs font-semibold text-red-800 flex-1" numberOfLines={1}>{pdf.name}</Text>
+                    <View style={{ borderWidth: 1.5, borderColor: "rgba(200,79,64,0.35)", backgroundColor: colors.coralTint, borderRadius: radius.md, padding: spacing.sm, height: 96, justifyContent: "center" }}>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: spacing.sm }}>
+                        <FileText size={14} color={colors.coral} />
+                        <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 11.5, color: colors.coral, flex: 1 }} numberOfLines={1}>{pdf.name}</Text>
                       </View>
-                      <TouchableOpacity
+                      <AnimatedPressable
+                        pressScale={0.95}
                         onPress={() => setPdf(null)}
-                        className="flex-row items-center justify-center gap-1 bg-red-600 rounded-lg py-1.5"
+                        style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, backgroundColor: colors.coral, borderRadius: radius.sm, paddingVertical: 6 }}
                       >
-                        <Trash2 size={11} color="#fff" />
-                        <Text className="text-white text-[10px] font-semibold">Remove</Text>
-                      </TouchableOpacity>
+                        <Trash2 size={11} color={colors.white} />
+                        <Text style={{ color: colors.white, fontSize: 10.5, fontFamily: fonts.bodySemibold }}>Remove</Text>
+                      </AnimatedPressable>
                     </View>
                   ) : (
-                    <TouchableOpacity
+                    <AnimatedPressable
                       onPress={handlePickPdf}
                       disabled={uploadingPdf}
-                      className="border-2 border-dashed border-border rounded-xl p-4 items-center h-24 justify-center"
+                      style={{ borderWidth: 1.5, borderStyle: "dashed", borderColor: colors.border, borderRadius: radius.md, height: 96, alignItems: "center", justifyContent: "center" }}
                     >
                       {uploadingPdf ? (
-                        <ActivityIndicator color="#dc2626" size="small" />
+                        <ActivityIndicator color={colors.coral} size="small" />
                       ) : (
                         <>
-                          <FileText size={20} color="#9ca3af" />
-                          <Text className="text-xs text-muted-foreground mt-1">Add PDF</Text>
+                          <FileText size={20} color={colors.inkFaint} />
+                          <Text style={{ ...type.caption, color: colors.inkMuted, marginTop: 4 }}>Add PDF</Text>
                         </>
                       )}
-                    </TouchableOpacity>
+                    </AnimatedPressable>
                   )}
                 </View>
               </View>
             </ScrollView>
 
-            <View className="flex-row gap-3 p-5 border-t border-border">
-              <TouchableOpacity onPress={onClose} className="flex-1 border-2 border-border rounded-xl py-3 items-center">
-                <Text className="font-semibold text-foreground text-sm">Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={handleSubmit}
-                disabled={submitting || !title.trim() || !description.trim() || !subject.trim()}
-                className="flex-1 bg-blue-600 rounded-xl py-3 items-center flex-row justify-center gap-2"
-                style={{ opacity: submitting || !title.trim() || !description.trim() || !subject.trim() ? 0.5 : 1 }}
-              >
-                {submitting ? <ActivityIndicator color="#fff" /> : (
-                  <>
-                    <Send size={16} color="#fff" />
-                    <Text className="text-white font-semibold text-sm">Post</Text>
-                  </>
-                )}
-              </TouchableOpacity>
+            <View style={{ flexDirection: "row", gap: spacing.sm, padding: spacing.lg, borderTopWidth: 1, borderTopColor: colors.border }}>
+              <Button label="Cancel" variant="ghost" onPress={onClose} style={{ flex: 1 }} />
+              <Button label="Post" icon={Send} onPress={handleSubmit} disabled={!isValid || submitting} loading={submitting} style={{ flex: 1 }} />
             </View>
-          </View>
+          </Animated.View>
         </KeyboardAvoidingView>
-      </View>
+      </Animated.View>
     </Modal>
   );
 }

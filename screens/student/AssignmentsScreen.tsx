@@ -1,20 +1,28 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
-import {
-  View, Text, TextInput, TouchableOpacity, FlatList,
-  ActivityIndicator,  Linking, RefreshControl, Alert,
-} from "react-native";
+import { View, Text, TouchableOpacity, FlatList, RefreshControl, ActivityIndicator, Dimensions, ImageBackground } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient";
+import { BlurView } from "expo-blur";
+import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
 import {
-  FileText, Search, Clock, CheckCircle, Activity, BookOpen,
-  User, Calendar, Award, Users, MessageSquare, Download, Upload,
-  X, Check, Eye, ChevronDown, ChevronUp,
+  FileText, Search, Clock, CheckCircle, Activity, BookOpen, X,
 } from "lucide-react-native";
 import api from "@/lib/api";
 import type { StudentAssignment, AssignmentSubmission } from "@/types";
 import SubmitAssignmentModal from "@/components/assignments/SubmitAssignmentModal";
 import CommentsModal from "@/components/assignments/CommentsModal";
+import AssignmentCard from "@/components/assignments/AssignmentCard";
+import Input from "@/components/ui/Input";
+import Skeleton from "@/components/ui/Skeleton";
+import AnimatedPressable from "@/components/ui/AnimatedPressable";
+import { colors, fonts, radius, spacing, type } from "@/constants/theme";
 
 type FilterType = "all" | "pending" | "submitted";
+
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
+
+// Placeholder editorial photography — swap for your own student/desk photo before launch.
+const HERO_PHOTO = "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=1200&q=80&auto=format&fit=crop";
 
 export default function AssignmentsScreen() {
   const [allAssignments, setAllAssignments] = useState<StudentAssignment[]>([]);
@@ -97,20 +105,11 @@ export default function AssignmentsScreen() {
     setSubmitTarget(null);
   };
 
-  if (loading) {
-    return (
-      <SafeAreaView className="flex-1 bg-background items-center justify-center">
-        <ActivityIndicator size="large" color="#6366f1" />
-        <Text className="text-muted-foreground mt-3">Loading assignments…</Text>
-      </SafeAreaView>
-    );
-  }
-
-  const stats = [
-    { icon: BookOpen, value: totalAssignments, label: "Total", color: "#3b82f6" },
-    { icon: CheckCircle, value: completedAssignments, label: "Completed", color: "#22c55e" },
-    { icon: Clock, value: pendingAssignments, label: "Pending", color: "#f97316" },
-    { icon: Activity, value: submittedAssignments, label: "Submitted", color: "#a855f7" },
+  const statCards = [
+    { icon: BookOpen, label: "Total", value: totalAssignments, accent: "#8FA6E0" },
+    { icon: CheckCircle, label: "Completed", value: completedAssignments, accent: colors.mint },
+    { icon: Clock, label: "Pending", value: pendingAssignments, accent: colors.coral },
+    { icon: Activity, label: "Submitted", value: submittedAssignments, accent: colors.gold },
   ];
 
   const filters: { value: FilterType; label: string; icon: typeof BookOpen }[] = [
@@ -119,117 +118,166 @@ export default function AssignmentsScreen() {
     { value: "submitted", label: "Submitted", icon: CheckCircle },
   ];
 
+  if (loading) {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: colors.paper, alignItems: "center", justifyContent: "center" }}>
+        <ActivityIndicator size="large" color={colors.indigo} />
+        <Text style={{ ...type.body, color: colors.inkMuted, marginTop: spacing.md }}>Loading assignments…</Text>
+      </SafeAreaView>
+    );
+  }
+
   return (
-    <SafeAreaView className="flex-1 bg-background">
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.paper }} edges={["top"]}>
       <FlatList
         data={filteredAssignments}
         keyExtractor={(item) => item.id}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => fetchAssignments(true)} />}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={() => fetchAssignments(true)} tintColor={colors.indigo} colors={[colors.indigo]} />
+        }
+        showsVerticalScrollIndicator={false}
         ListHeaderComponent={
-          <View className="px-5 pt-4">
-            <View className="flex-row items-center gap-3 mb-4">
-              <View className="w-11 h-11 bg-indigo-600 rounded-xl items-center justify-center">
-                <FileText size={22} color="#fff" />
-              </View>
-              <View>
-                <Text className="text-xl font-bold text-foreground">My Assignments</Text>
-                <Text className="text-xs text-muted-foreground">View, submit, and discuss your work</Text>
-              </View>
+          <View>
+            {/* Cinematic photo hero — same language as the dashboards */}
+            <View style={{ overflow: "hidden", borderBottomLeftRadius: 32, borderBottomRightRadius: 32 }}>
+              <ImageBackground source={{ uri: HERO_PHOTO }} resizeMode="cover">
+                <LinearGradient
+                  colors={["rgba(27,44,92,0.6)", "rgba(27,44,92,0.8)", "rgba(16,24,49,0.95)"]}
+                  style={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: 28 }}
+                >
+                  <Animated.View entering={FadeIn.duration(400)} style={{ flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 20 }}>
+                    <View style={{ width: 46, height: 46, borderRadius: radius.md, backgroundColor: "rgba(255,255,255,0.14)", alignItems: "center", justifyContent: "center" }}>
+                      <FileText size={22} color={colors.white} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ ...type.h2, color: colors.white, textShadowColor: "rgba(0,0,0,0.3)", textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 6 }}>My Assignments</Text>
+                      <Text style={{ color: "rgba(255,255,255,0.75)", fontFamily: fonts.body, fontSize: 12.5, marginTop: 1 }}>
+                        View, submit, and discuss your work
+                      </Text>
+                    </View>
+                  </Animated.View>
+
+                  <Animated.View entering={FadeInDown.duration(450).delay(80)}>
+                    <BlurView intensity={45} tint="dark" style={{ borderRadius: radius.lg, overflow: "hidden", borderWidth: 1, borderColor: "rgba(255,255,255,0.18)" }}>
+                      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, padding: spacing.lg }}>
+                        {statCards.map((s, idx) => (
+                          <View
+                            key={idx}
+                            style={{
+                              minWidth: "45%", flex: 1, borderRadius: radius.md, padding: spacing.md,
+                              backgroundColor: "rgba(255,255,255,0.06)",
+                              borderLeftWidth: 3, borderLeftColor: s.accent,
+                            }}
+                          >
+                            <View style={{ width: 28, height: 28, borderRadius: radius.sm, backgroundColor: `${s.accent}30`, alignItems: "center", justifyContent: "center", marginBottom: spacing.sm }}>
+                              <s.icon size={14} color={s.accent} />
+                            </View>
+                            <Text style={{ color: colors.white, fontFamily: fonts.displayBold, fontSize: 17 }}>{s.value}</Text>
+                            <Text style={{ color: "rgba(255,255,255,0.6)", fontFamily: fonts.body, fontSize: 10.5 }}>{s.label}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    </BlurView>
+                  </Animated.View>
+                </LinearGradient>
+              </ImageBackground>
             </View>
 
-            {/* Stats */}
-            <View className="flex-row flex-wrap gap-3 mb-5">
-              {stats.map((s, idx) => (
-                <View key={idx} className="bg-card rounded-2xl p-3 border border-border" style={{ minWidth: "45%" }}>
-                  <View className="w-9 h-9 rounded-xl items-center justify-center mb-2" style={{ backgroundColor: `${s.color}20` }}>
-                    <s.icon size={16} color={s.color} />
-                  </View>
-                  <Text className="text-lg font-bold text-foreground">{s.value}</Text>
-                  <Text className="text-xs text-muted-foreground">{s.label}</Text>
-                </View>
-              ))}
-            </View>
-
-            {/* Search */}
-            <View className="flex-row items-center border-2 border-border rounded-xl px-3 mb-4 bg-card">
-              <Search size={18} color="#9ca3af" />
-              <TextInput
+            {/* Search + filters */}
+            <View style={{ paddingHorizontal: 20, paddingTop: 20 }}>
+              <Input
                 value={searchQuery}
                 onChangeText={setSearchQuery}
                 placeholder="Search assignments…"
-                className="flex-1 py-3 px-2 text-foreground"
+                leftIcon={<Search size={18} color={colors.inkFaint} />}
+                rightIcon={
+                  searchQuery ? (
+                    <AnimatedPressable pressScale={0.85} onPress={() => setSearchQuery("")} hitSlop={8}>
+                      <X size={16} color={colors.inkFaint} />
+                    </AnimatedPressable>
+                  ) : undefined
+                }
               />
-              {searchQuery ? (
-                <TouchableOpacity onPress={() => setSearchQuery("")}>
-                  <X size={16} color="#9ca3af" />
-                </TouchableOpacity>
-              ) : null}
-            </View>
 
-            {/* Filter tabs */}
-            <FlatList
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              data={filters}
-              keyExtractor={(f) => f.value}
-              contentContainerStyle={{ gap: 8, marginBottom: 10 }}
-              renderItem={({ item: f }) => (
-                <TouchableOpacity
-                  onPress={() => setFilter(f.value)}
-                  className={`flex-row items-center gap-1.5 px-4 py-2 rounded-xl ${
-                    filter === f.value ? "bg-indigo-600" : "bg-card border border-border"
-                  }`}
-                >
-                  <f.icon size={14} color={filter === f.value ? "#fff" : "#6b7280"} />
-                  <Text className={`text-sm font-semibold ${filter === f.value ? "text-white" : "text-foreground"}`}>
-                    {f.label}
-                  </Text>
-                </TouchableOpacity>
+              {/* Filter tabs */}
+              <View style={{ flexDirection: "row", gap: 8, marginTop: spacing.md }}>
+                {filters.map((f) => {
+                  const active = filter === f.value;
+                  return (
+                    <AnimatedPressable
+                      key={f.value}
+                      pressScale={0.95}
+                      onPress={() => setFilter(f.value)}
+                      style={{
+                        flexDirection: "row", alignItems: "center", gap: 6,
+                        paddingHorizontal: 14, paddingVertical: 9, borderRadius: radius.md,
+                        backgroundColor: active ? colors.indigo : colors.surface,
+                        borderWidth: active ? 0 : 1, borderColor: colors.border,
+                      }}
+                    >
+                      <f.icon size={13} color={active ? colors.white : colors.inkMuted} />
+                      <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 13, color: active ? colors.white : colors.ink }}>
+                        {f.label}
+                      </Text>
+                    </AnimatedPressable>
+                  );
+                })}
+              </View>
+
+              {/* Subject chips */}
+              {subjects.length > 0 && (
+                <FlatList
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  data={["all", ...subjects]}
+                  keyExtractor={(s) => s}
+                  contentContainerStyle={{ gap: 8, marginTop: spacing.md }}
+                  renderItem={({ item: s }) => {
+                    const active = selectedSubject === s;
+                    return (
+                      <TouchableOpacity
+                        onPress={() => setSelectedSubject(s)}
+                        activeOpacity={0.7}
+                        style={{
+                          paddingHorizontal: 12, paddingVertical: 7, borderRadius: radius.pill,
+                          backgroundColor: active ? colors.indigoTint : colors.surfaceMuted,
+                        }}
+                      >
+                        <Text style={{ fontFamily: fonts.bodyMedium, fontSize: 12, color: active ? colors.indigo : colors.inkMuted }}>
+                          {s === "all" ? "All Subjects" : s}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  }}
+                />
               )}
-            />
 
-            {/* Subject chips */}
-            {subjects.length > 0 && (
-              <FlatList
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                data={["all", ...subjects]}
-                keyExtractor={(s) => s}
-                contentContainerStyle={{ gap: 8, marginBottom: 12 }}
-                renderItem={({ item: s }) => (
-                  <TouchableOpacity
-                    onPress={() => setSelectedSubject(s)}
-                    className={`px-3 py-1.5 rounded-full border ${
-                      selectedSubject === s ? "bg-purple-100 border-purple-400" : "bg-card border-border"
-                    }`}
-                  >
-                    <Text className={`text-xs font-medium ${selectedSubject === s ? "text-purple-700" : "text-muted-foreground"}`}>
-                      {s === "all" ? "All Subjects" : s}
-                    </Text>
-                  </TouchableOpacity>
-                )}
-              />
-            )}
-
-            <Text className="text-xs text-muted-foreground mb-3">
-              Showing {filteredAssignments.length} of {totalAssignments} assignments
-            </Text>
+              <Text style={{ fontFamily: fonts.body, fontSize: 12, color: colors.inkFaint, marginTop: spacing.md, marginBottom: 4 }}>
+                Showing {filteredAssignments.length} of {totalAssignments} assignments
+              </Text>
+            </View>
           </View>
         }
-        renderItem={({ item: assignment }) => (
-          <AssignmentCard
-            assignment={assignment}
-            onSubmit={() => setSubmitTarget(assignment)}
-            onViewComments={() => setCommentsTarget(assignment)}
-            onMarkCompleted={handleMarkCompleted}
-          />
+        renderItem={({ item: assignment, index }) => (
+          <Animated.View entering={FadeInDown.duration(350).delay(Math.min(index, 6) * 60)}>
+            <AssignmentCard
+              assignment={assignment}
+              onSubmit={() => setSubmitTarget(assignment)}
+              onViewComments={() => setCommentsTarget(assignment)}
+              onMarkCompleted={handleMarkCompleted}
+            />
+          </Animated.View>
         )}
-        contentContainerStyle={{ paddingBottom: 24 }}
+        contentContainerStyle={{ paddingTop: 4, paddingBottom: 24 }}
         ListEmptyComponent={
-          <View className="items-center py-16 px-5">
-            <FileText size={48} color="#9ca3af" />
-            <Text className="text-foreground font-bold text-base mt-3">No assignments found</Text>
-            <Text className="text-muted-foreground text-sm text-center mt-1">
+          <View style={{ alignItems: "center", paddingVertical: 64, paddingHorizontal: 32 }}>
+            <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: colors.surfaceMuted, alignItems: "center", justifyContent: "center", marginBottom: spacing.lg }}>
+              <FileText size={30} color={colors.inkFaint} />
+            </View>
+            <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 15, color: colors.ink, marginBottom: 4 }}>
+              No assignments found
+            </Text>
+            <Text style={{ ...type.body, fontSize: 13, color: colors.inkMuted, textAlign: "center" }}>
               {searchQuery || selectedSubject !== "all"
                 ? "Try adjusting your filters."
                 : "Your teachers haven't assigned any work yet."}
@@ -250,164 +298,5 @@ export default function AssignmentsScreen() {
         onClose={() => setCommentsTarget(null)}
       />
     </SafeAreaView>
-  );
-}
-
-function AssignmentCard({
-  assignment,
-  onSubmit,
-  onViewComments,
-  onMarkCompleted,
-}: {
-  assignment: StudentAssignment;
-  onSubmit: () => void;
-  onViewComments: () => void;
-  onMarkCompleted: (submissionId: string) => void;
-}) {
-  const [expanded, setExpanded] = useState(false);
-  const dueDate = new Date(assignment.dueDate);
-  const now = new Date();
-  const daysLeft = Math.ceil((dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-  const hoursLeft = Math.ceil((dueDate.getTime() - now.getTime()) / (1000 * 60 * 60));
-
-  const timeLeftText =
-    daysLeft > 1 ? `${daysLeft} days left` : hoursLeft > 1 ? `${hoursLeft} hours left` : daysLeft < 0 ? "Past due" : "Due soon!";
-  const timeLeftColor = daysLeft < 0 ? "#9ca3af" : daysLeft <= 2 ? "#f97316" : "#22c55e";
-
-  const statusBadge = assignment.mySubmission?.isCompleted
-    ? { label: "Completed", bg: "bg-green-100", text: "text-green-700", Icon: CheckCircle }
-    : assignment.mySubmission
-    ? { label: "Submitted", bg: "bg-blue-100", text: "text-blue-700", Icon: Activity }
-    : { label: "Pending", bg: "bg-orange-100", text: "text-orange-700", Icon: Clock };
-
-  return (
-    <View className="mx-5 mb-4 bg-card rounded-2xl border border-border p-4">
-      {/* Title + badges */}
-      <View className="flex-row flex-wrap items-center gap-1.5 mb-2">
-        <Text className="font-bold text-foreground text-base flex-shrink" numberOfLines={2}>{assignment.title}</Text>
-      </View>
-      <View className="flex-row flex-wrap gap-1.5 mb-3">
-        <View className={`px-2 py-1 rounded-full flex-row items-center gap-1 ${statusBadge.bg}`}>
-          <statusBadge.Icon size={11} color="#000" />
-          <Text className={`text-[10px] font-bold ${statusBadge.text}`}>{statusBadge.label}</Text>
-        </View>
-        <View className="px-2 py-1 rounded-full bg-purple-100">
-          <Text className="text-[10px] font-bold text-purple-700">{assignment.subject}</Text>
-        </View>
-        <View className="px-2 py-1 rounded-full bg-blue-100">
-          <Text className="text-[10px] font-bold text-blue-700">{assignment.class}</Text>
-        </View>
-      </View>
-
-      <Text className="text-sm text-muted-foreground mb-1" numberOfLines={expanded ? undefined : 2}>
-        {assignment.description}
-      </Text>
-      {assignment.description.length > 100 && (
-        <TouchableOpacity onPress={() => setExpanded(!expanded)} className="flex-row items-center gap-1 mb-2">
-          {expanded ? <ChevronUp size={14} color="#6366f1" /> : <ChevronDown size={14} color="#6366f1" />}
-          <Text className="text-indigo-600 text-xs font-semibold">{expanded ? "Show less" : "Read more"}</Text>
-        </TouchableOpacity>
-      )}
-
-      {/* Meta */}
-      <View className="flex-row flex-wrap gap-x-4 gap-y-1.5 mb-3">
-        <View className="flex-row items-center gap-1">
-          <User size={12} color="#6b7280" />
-          <Text className="text-xs text-muted-foreground" numberOfLines={1}>{assignment.teacher.name || "Unknown"}</Text>
-        </View>
-        <View className="flex-row items-center gap-1">
-          <Calendar size={12} color="#6b7280" />
-          <Text className="text-xs text-muted-foreground">Due: {dueDate.toLocaleDateString()}</Text>
-        </View>
-        <View className="flex-row items-center gap-1">
-          <Clock size={12} color={timeLeftColor} />
-          <Text className="text-xs font-semibold" style={{ color: timeLeftColor }}>{timeLeftText}</Text>
-        </View>
-        <View className="flex-row items-center gap-1">
-          <Award size={12} color="#6b7280" />
-          <Text className="text-xs text-muted-foreground">{assignment.totalMarks} marks</Text>
-        </View>
-        <View className="flex-row items-center gap-1">
-          <Users size={12} color="#6b7280" />
-          <Text className="text-xs text-muted-foreground">{assignment.stats.totalSubmissions} submissions</Text>
-        </View>
-      </View>
-
-      {/* Submission box */}
-      {assignment.mySubmission && (
-        <View className="border-2 border-blue-200 bg-blue-50 rounded-xl p-3 mb-3">
-          <View className="flex-row items-start gap-2.5">
-            <View className="w-9 h-9 bg-blue-600 rounded-lg items-center justify-center">
-              <CheckCircle size={18} color="#fff" />
-            </View>
-            <View className="flex-1">
-              <Text className="font-semibold text-blue-900 text-sm mb-1">Your Submission</Text>
-              <View className="flex-row items-center gap-1">
-                <FileText size={12} color="#1d4ed8" />
-                <Text className="text-xs text-blue-700" numberOfLines={1}>
-                  {assignment.mySubmission.fileName} · {assignment.mySubmission.fileSize}
-                </Text>
-              </View>
-              <Text className="text-[10px] text-blue-600 mt-1">
-                Submitted {new Date(assignment.mySubmission.submittedAt).toLocaleDateString()}
-              </Text>
-              {assignment.mySubmission.remarks ? (
-                <Text className="text-xs text-blue-800 italic mt-1.5">"{assignment.mySubmission.remarks}"</Text>
-              ) : null}
-            </View>
-          </View>
-          <View className="flex-row gap-2 mt-3">
-            <TouchableOpacity
-              onPress={() => Linking.openURL(assignment.mySubmission!.fileUrl)}
-              className="flex-1 bg-blue-600 rounded-lg py-2 flex-row items-center justify-center gap-1.5"
-            >
-              <Eye size={14} color="#fff" />
-              <Text className="text-white text-xs font-semibold">View</Text>
-            </TouchableOpacity>
-            {!assignment.mySubmission.isCompleted && (
-              <TouchableOpacity
-                onPress={() => onMarkCompleted(assignment.mySubmission!.id)}
-                className="flex-1 bg-green-600 rounded-lg py-2 flex-row items-center justify-center gap-1.5"
-              >
-                <Check size={14} color="#fff" />
-                <Text className="text-white text-xs font-semibold">Mark Done</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        </View>
-      )}
-
-      {/* Actions */}
-      <View className="flex-row flex-wrap gap-2">
-        {assignment.fileUrl && (
-          <TouchableOpacity
-            onPress={() => Linking.openURL(assignment.fileUrl!)}
-            className="flex-1 bg-purple-600 rounded-xl py-2.5 flex-row items-center justify-center gap-1.5"
-            style={{ minWidth: "45%" }}
-          >
-            <Download size={14} color="#fff" />
-            <Text className="text-white text-xs font-semibold">Download</Text>
-          </TouchableOpacity>
-        )}
-        {!assignment.mySubmission && (
-          <TouchableOpacity
-            onPress={onSubmit}
-            className="flex-1 bg-emerald-600 rounded-xl py-2.5 flex-row items-center justify-center gap-1.5"
-            style={{ minWidth: "45%" }}
-          >
-            <Upload size={14} color="#fff" />
-            <Text className="text-white text-xs font-semibold">Submit</Text>
-          </TouchableOpacity>
-        )}
-        <TouchableOpacity
-          onPress={onViewComments}
-          className="flex-1 border-2 border-indigo-300 rounded-xl py-2.5 flex-row items-center justify-center gap-1.5"
-          style={{ minWidth: "45%" }}
-        >
-          <MessageSquare size={14} color="#6366f1" />
-          <Text className="text-indigo-700 text-xs font-semibold">Discuss ({assignment.stats.totalComments})</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
   );
 }

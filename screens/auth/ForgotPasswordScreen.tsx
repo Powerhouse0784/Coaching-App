@@ -1,9 +1,16 @@
 import { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, ActivityIndicator } from "react-native";
+import { View, Text, ScrollView, KeyboardAvoidingView, Platform } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
+import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
 import { KeyRound, Mail, AlertCircle, CheckCircle, ArrowLeft } from "lucide-react-native";
 import api from "@/lib/api";
 import type { AuthStackParamList } from "@/navigation/types";
+import Card from "@/components/ui/Card";
+import Input from "@/components/ui/Input";
+import Button from "@/components/ui/Button";
+import AnimatedPressable from "@/components/ui/AnimatedPressable";
+import { colors, fonts, radius, spacing, type } from "@/constants/theme";
 
 type Props = NativeStackScreenProps<AuthStackParamList, "ForgotPassword">;
 
@@ -27,78 +34,87 @@ export default function ForgotPasswordScreen({ navigation }: Props) {
   };
 
   return (
-    <View className="flex-1 bg-background justify-center px-5 py-8">
-      <TouchableOpacity onPress={() => navigation.goBack()} className="flex-row items-center gap-2 mb-6">
-        <View className="w-10 h-10 rounded-xl bg-secondary items-center justify-center">
-          <ArrowLeft size={20} color="#374151" />
-        </View>
-        <Text className="text-foreground font-semibold">Back to Sign In</Text>
-      </TouchableOpacity>
-
-      <View className="bg-card rounded-2xl p-6 border border-border shadow-lg">
-        <View className="items-center mb-6">
-          <View className="w-16 h-16 rounded-2xl mb-4 items-center justify-center bg-indigo-100">
-            <KeyRound size={28} color="#4f46e5" />
-          </View>
-          <Text className="text-xl font-bold text-foreground">
-            {step === "email" ? "Forgot Password?" : "Check Your Email"}
-          </Text>
-          <Text className="text-sm text-muted-foreground mt-1 text-center">
-            {step === "email"
-              ? "No worries! Enter your email and we'll send you reset instructions."
-              : `We've sent a password reset link to ${email}`}
-          </Text>
-        </View>
-
-        {step === "email" ? (
-          <>
-            {error ? (
-              <View className="flex-row items-center gap-2 bg-red-50 border border-red-200 rounded-xl p-3 mb-4">
-                <AlertCircle size={18} color="#dc2626" />
-                <Text className="text-red-600 text-sm flex-1">{error}</Text>
-              </View>
-            ) : null}
-            <Text className="text-sm font-medium text-foreground mb-1.5">Email Address</Text>
-            <View className="flex-row items-center border-2 border-border rounded-xl px-3 mb-5">
-              <Mail size={18} color="#9ca3af" />
-              <TextInput
-                value={email}
-                onChangeText={setEmail}
-                placeholder="you@example.com"
-                autoCapitalize="none"
-                keyboardType="email-address"
-                className="flex-1 py-3 px-2 text-foreground"
-              />
+    <KeyboardAvoidingView
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      style={{ flex: 1, backgroundColor: colors.paper }}
+    >
+      <ScrollView contentContainerStyle={{ flexGrow: 1 }} showsVerticalScrollIndicator={false}>
+        {/* Brand hero */}
+        <LinearGradient
+          colors={[colors.indigoDark, colors.indigo]}
+          style={{ paddingTop: 56, paddingBottom: 52, paddingHorizontal: 20, alignItems: "center", borderBottomLeftRadius: 32, borderBottomRightRadius: 32 }}
+        >
+          <AnimatedPressable pressScale={0.92} onPress={() => navigation.goBack()} style={{ flexDirection: "row", alignItems: "center", gap: 8, alignSelf: "flex-start", marginBottom: 24 }}>
+            <View style={{ width: 36, height: 36, borderRadius: radius.sm, backgroundColor: "rgba(255,255,255,0.12)", alignItems: "center", justifyContent: "center" }}>
+              <ArrowLeft size={18} color={colors.white} />
             </View>
-            <TouchableOpacity
-              onPress={handleSubmit}
-              disabled={loading}
-              className="bg-indigo-600 rounded-xl py-3.5 items-center"
-            >
-              {loading ? <ActivityIndicator color="#fff" /> : <Text className="text-white font-semibold">Send Reset Link</Text>}
-            </TouchableOpacity>
-          </>
-        ) : (
-          <View className="items-center">
-            <View className="w-16 h-16 rounded-full bg-green-100 items-center justify-center mb-4">
-              <CheckCircle size={32} color="#16a34a" />
+            <Text style={{ color: colors.white, fontFamily: fonts.bodySemibold, fontSize: 14 }}>Back to Sign In</Text>
+          </AnimatedPressable>
+
+          <Animated.View entering={FadeIn.duration(450)} style={{ alignItems: "center" }}>
+            <View style={{ width: 60, height: 60, borderRadius: radius.lg, backgroundColor: "rgba(255,255,255,0.12)", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
+              <KeyRound size={28} color={colors.white} />
             </View>
-            <Text className="text-sm text-muted-foreground text-center mb-4">
-              Click the link in the email to reset your password. Check your spam folder if you don't see it.
+            <Text style={{ ...type.h2, color: colors.white, marginBottom: 4, textAlign: "center" }}>
+              {step === "email" ? "Forgot Password?" : "Check Your Email"}
             </Text>
-            <TouchableOpacity onPress={() => setStep("email")}>
-              <Text className="text-indigo-600 font-semibold text-sm">Didn't receive it? Try again</Text>
-            </TouchableOpacity>
-          </View>
-        )}
+            <Text style={{ fontFamily: fonts.body, fontSize: 13, color: "rgba(255,255,255,0.7)", textAlign: "center", paddingHorizontal: 16, lineHeight: 19 }}>
+              {step === "email"
+                ? "No worries! Enter your email and we'll send you reset instructions."
+                : `We've sent a password reset link to ${email}`}
+            </Text>
+          </Animated.View>
+        </LinearGradient>
 
-        <View className="flex-row justify-center mt-5">
-          <Text className="text-muted-foreground text-sm">Remembered your password? </Text>
-          <TouchableOpacity onPress={() => navigation.navigate("Login")}>
-            <Text className="text-indigo-600 font-semibold text-sm">Sign in</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </View>
+        {/* Form card */}
+        <Animated.View entering={FadeInDown.duration(400).delay(100)} style={{ paddingHorizontal: 20, marginTop: -28, paddingBottom: 32 }}>
+          <Card padding="xl">
+            {step === "email" ? (
+              <>
+                {error ? (
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: colors.coralTint, borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.lg }}>
+                    <AlertCircle size={17} color={colors.coral} />
+                    <Text style={{ color: colors.coral, fontFamily: fonts.bodyMedium, fontSize: 13, flex: 1 }}>{error}</Text>
+                  </View>
+                ) : null}
+
+                <Input
+                  label="Email Address"
+                  value={email}
+                  onChangeText={setEmail}
+                  placeholder="you@example.com"
+                  autoCapitalize="none"
+                  keyboardType="email-address"
+                  leftIcon={<Mail size={17} color={colors.inkFaint} />}
+                  style={{ marginBottom: 0 }}
+                />
+                <View style={{ height: spacing.lg }} />
+
+                <Button label="Send Reset Link" onPress={handleSubmit} loading={loading} fullWidth size="lg" />
+              </>
+            ) : (
+              <View style={{ alignItems: "center" }}>
+                <View style={{ width: 64, height: 64, borderRadius: 999, backgroundColor: colors.mintTint, alignItems: "center", justifyContent: "center", marginBottom: spacing.lg }}>
+                  <CheckCircle size={30} color={colors.mint} />
+                </View>
+                <Text style={{ fontFamily: fonts.body, fontSize: 13, color: colors.inkMuted, textAlign: "center", marginBottom: spacing.lg, lineHeight: 19 }}>
+                  Click the link in the email to reset your password. Check your spam folder if you don't see it.
+                </Text>
+                <AnimatedPressable pressScale={0.95} onPress={() => setStep("email")}>
+                  <Text style={{ color: colors.indigo, fontFamily: fonts.bodySemibold, fontSize: 13 }}>Didn't receive it? Try again</Text>
+                </AnimatedPressable>
+              </View>
+            )}
+
+            <View style={{ flexDirection: "row", justifyContent: "center", marginTop: spacing.lg }}>
+              <Text style={{ color: colors.inkMuted, fontFamily: fonts.body, fontSize: 13 }}>Remembered your password? </Text>
+              <AnimatedPressable pressScale={0.95} onPress={() => navigation.navigate("Login")}>
+                <Text style={{ color: colors.indigo, fontFamily: fonts.bodySemibold, fontSize: 13 }}>Sign in</Text>
+              </AnimatedPressable>
+            </View>
+          </Card>
+        </Animated.View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }

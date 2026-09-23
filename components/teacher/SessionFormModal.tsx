@@ -1,10 +1,14 @@
 import { useState } from "react";
 import {
-  View, Text, TextInput, TouchableOpacity, Modal, ScrollView,
-  ActivityIndicator, Alert, KeyboardAvoidingView, Platform,
+  View, Text, TextInput, Modal, ScrollView,
+  ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable,
 } from "react-native";
-import { X, Trash2 } from "lucide-react-native";
+import Animated, { FadeIn, SlideInDown } from "react-native-reanimated";
+import { X, Trash2, Save } from "lucide-react-native";
 import type { ScheduleSession } from "@/types";
+import Button from "@/components/ui/Button";
+import AnimatedPressable from "@/components/ui/AnimatedPressable";
+import { colors, fonts, radius, spacing, type } from "@/constants/theme";
 
 interface Props {
   visible: boolean;
@@ -15,7 +19,13 @@ interface Props {
   onDelete?: () => void;
 }
 
-const COLORS = ["#3b82f6", "#a855f7", "#22c55e", "#f97316", "#ec4899", "#14b8a6", "#eab308"];
+const COLORS = ["#5A72C4", "#A855F7", "#2F8F5B", "#C99A2E", "#EC4899", "#14B8A6", "#C1443A"];
+
+const fieldStyle = {
+  borderWidth: 1.5, borderColor: colors.border, borderRadius: radius.md,
+  paddingHorizontal: spacing.md, paddingVertical: 10, color: colors.ink,
+  fontFamily: fonts.body, fontSize: 14, backgroundColor: colors.surface,
+};
 
 function isValidTime(t: string) {
   return /^([01]\d|2[0-3]):([0-5]\d)$/.test(t);
@@ -64,133 +74,91 @@ export default function SessionFormModal({ visible, session, dateKey, onClose, o
   };
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View className="flex-1 bg-black/70 justify-end">
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <Animated.View entering={FadeIn.duration(200)} style={{ flex: 1, backgroundColor: "rgba(23,25,35,0.6)", justifyContent: "flex-end" }}>
+        <Pressable style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }} onPress={submitting ? undefined : onClose} />
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined}>
-          <View className="bg-background rounded-t-3xl" style={{ maxHeight: "88%" }}>
-            <View className="flex-row items-center justify-between p-5 border-b border-border">
-              <View>
-                <Text className="text-lg font-bold text-foreground">{isEdit ? "Edit Session" : "New Session"}</Text>
-                <Text className="text-xs text-muted-foreground">{formatDateLabel(dateKey)}</Text>
-              </View>
-              <TouchableOpacity onPress={onClose} disabled={submitting}>
-                <X size={22} color="#9ca3af" />
-              </TouchableOpacity>
+          <Animated.View
+            entering={SlideInDown.duration(280).springify().damping(18)}
+            style={{ backgroundColor: colors.paper, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, maxHeight: "88%" }}
+          >
+            <View style={{ alignItems: "center", paddingTop: 10 }}>
+              <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: colors.border }} />
             </View>
 
-            <ScrollView contentContainerStyle={{ padding: 20 }}>
-              <Text className="text-sm font-semibold text-foreground mb-1.5">Title *</Text>
-              <TextInput
-                value={title}
-                onChangeText={setTitle}
-                placeholder="e.g., Physics Live Class"
-                className="border-2 border-border rounded-xl px-3 py-2.5 text-foreground text-sm mb-4"
-              />
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+              <View>
+                <Text style={{ ...type.h3, fontSize: 17, color: colors.ink }}>{isEdit ? "Edit Session" : "New Session"}</Text>
+                <Text style={{ ...type.caption, color: colors.inkMuted, marginTop: 1 }}>{formatDateLabel(dateKey)}</Text>
+              </View>
+              <AnimatedPressable pressScale={0.9} onPress={onClose} disabled={submitting} style={{ width: 32, height: 32, borderRadius: radius.sm, backgroundColor: colors.surfaceMuted, alignItems: "center", justifyContent: "center" }}>
+                <X size={18} color={colors.inkMuted} />
+              </AnimatedPressable>
+            </View>
 
-              <View className="flex-row gap-3 mb-4">
-                <View className="flex-1">
-                  <Text className="text-sm font-semibold text-foreground mb-1.5">Subject *</Text>
-                  <TextInput
-                    value={subject}
-                    onChangeText={setSubject}
-                    placeholder="Physics"
-                    className="border-2 border-border rounded-xl px-3 py-2.5 text-foreground text-sm"
-                  />
+            <ScrollView contentContainerStyle={{ padding: spacing.lg }} showsVerticalScrollIndicator={false}>
+              <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 13, color: colors.ink, marginBottom: 6 }}>Title *</Text>
+              <TextInput value={title} onChangeText={setTitle} placeholder="e.g., Physics Live Class" placeholderTextColor={colors.inkFaint} style={[fieldStyle, { marginBottom: spacing.lg }]} />
+
+              <View style={{ flexDirection: "row", gap: spacing.md, marginBottom: spacing.lg }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 13, color: colors.ink, marginBottom: 6 }}>Subject *</Text>
+                  <TextInput value={subject} onChangeText={setSubject} placeholder="Physics" placeholderTextColor={colors.inkFaint} style={fieldStyle} />
                 </View>
-                <View className="flex-1">
-                  <Text className="text-sm font-semibold text-foreground mb-1.5">Class *</Text>
-                  <TextInput
-                    value={className}
-                    onChangeText={setClassName}
-                    placeholder="Class 12"
-                    className="border-2 border-border rounded-xl px-3 py-2.5 text-foreground text-sm"
-                  />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 13, color: colors.ink, marginBottom: 6 }}>Class *</Text>
+                  <TextInput value={className} onChangeText={setClassName} placeholder="Class 12" placeholderTextColor={colors.inkFaint} style={fieldStyle} />
                 </View>
               </View>
 
-              <View className="flex-row gap-3 mb-1">
-                <View className="flex-1">
-                  <Text className="text-sm font-semibold text-foreground mb-1.5">Start Time *</Text>
-                  <TextInput
-                    value={startTime}
-                    onChangeText={setStartTime}
-                    placeholder="09:00"
-                    className="border-2 border-border rounded-xl px-3 py-2.5 text-foreground text-sm"
-                  />
+              <View style={{ flexDirection: "row", gap: spacing.md, marginBottom: 4 }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 13, color: colors.ink, marginBottom: 6 }}>Start Time *</Text>
+                  <TextInput value={startTime} onChangeText={setStartTime} placeholder="09:00" placeholderTextColor={colors.inkFaint} style={fieldStyle} />
                 </View>
-                <View className="flex-1">
-                  <Text className="text-sm font-semibold text-foreground mb-1.5">End Time *</Text>
-                  <TextInput
-                    value={endTime}
-                    onChangeText={setEndTime}
-                    placeholder="10:00"
-                    className="border-2 border-border rounded-xl px-3 py-2.5 text-foreground text-sm"
-                  />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 13, color: colors.ink, marginBottom: 6 }}>End Time *</Text>
+                  <TextInput value={endTime} onChangeText={setEndTime} placeholder="10:00" placeholderTextColor={colors.inkFaint} style={fieldStyle} />
                 </View>
               </View>
-              <Text className="text-xs text-muted-foreground mb-4">24-hour format, e.g. 14:30</Text>
+              <Text style={{ ...type.caption, color: colors.inkFaint, marginBottom: spacing.lg }}>24-hour format, e.g. 14:30</Text>
 
-              <Text className="text-sm font-semibold text-foreground mb-2">Color Tag</Text>
-              <View className="flex-row gap-2.5 mb-4">
+              <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 13, color: colors.ink, marginBottom: spacing.sm }}>Color Tag</Text>
+              <View style={{ flexDirection: "row", gap: 10, marginBottom: spacing.lg }}>
                 {COLORS.map((c) => (
-                  <TouchableOpacity
+                  <AnimatedPressable
                     key={c}
+                    pressScale={0.85}
                     onPress={() => setColor(c)}
-                    style={{
-                      width: 32, height: 32, borderRadius: 16, backgroundColor: c,
-                      borderWidth: color === c ? 3 : 0, borderColor: "#111827",
-                    }}
+                    style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: c, borderWidth: color === c ? 3 : 0, borderColor: colors.ink }}
                   />
                 ))}
               </View>
 
-              <Text className="text-sm font-semibold text-foreground mb-1.5">Notes (Optional)</Text>
+              <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 13, color: colors.ink, marginBottom: 6 }}>Notes (Optional)</Text>
               <TextInput
-                value={notes}
-                onChangeText={setNotes}
-                placeholder="Optional notes about this session…"
-                multiline
-                numberOfLines={3}
-                className="border-2 border-border rounded-xl px-3 py-2.5 text-foreground text-sm"
-                style={{ textAlignVertical: "top", minHeight: 70 }}
+                value={notes} onChangeText={setNotes} placeholder="Optional notes about this session…" placeholderTextColor={colors.inkFaint}
+                multiline numberOfLines={3} style={[fieldStyle, { textAlignVertical: "top", minHeight: 70 }]}
               />
             </ScrollView>
 
-            <View className="flex-row gap-3 p-5 border-t border-border">
+            <View style={{ flexDirection: "row", gap: spacing.sm, padding: spacing.lg, borderTopWidth: 1, borderTopColor: colors.border }}>
               {isEdit && onDelete && (
-                <TouchableOpacity
+                <AnimatedPressable
+                  pressScale={0.9}
                   onPress={onDelete}
                   disabled={submitting}
-                  className="w-12 border-2 border-red-300 rounded-xl items-center justify-center"
-                  style={{ opacity: submitting ? 0.5 : 1 }}
+                  style={{ width: 48, alignItems: "center", justifyContent: "center", borderWidth: 1.5, borderColor: "rgba(193,68,58,0.3)", borderRadius: radius.md, opacity: submitting ? 0.5 : 1 }}
                 >
-                  <Trash2 size={16} color="#dc2626" />
-                </TouchableOpacity>
+                  <Trash2 size={16} color={colors.coral} />
+                </AnimatedPressable>
               )}
-              <TouchableOpacity
-                onPress={onClose}
-                disabled={submitting}
-                className="flex-1 border-2 border-border rounded-xl py-3 items-center"
-                style={{ opacity: submitting ? 0.5 : 1 }}
-              >
-                <Text className="font-semibold text-foreground text-sm">Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={handleSubmit}
-                disabled={submitting}
-                className="flex-1 bg-teal-600 rounded-xl py-3 items-center flex-row justify-center gap-2"
-                style={{ opacity: submitting ? 0.6 : 1 }}
-              >
-                {submitting ? (
-                  <ActivityIndicator color="#fff" size="small" />
-                ) : (
-                  <Text className="text-white font-semibold text-sm">{isEdit ? "Save Changes" : "Add Session"}</Text>
-                )}
-              </TouchableOpacity>
+              <Button label="Cancel" variant="ghost" onPress={onClose} disabled={submitting} style={{ flex: 1 }} />
+              <Button label={isEdit ? "Save Changes" : "Add Session"} icon={Save} onPress={handleSubmit} disabled={submitting} loading={submitting} style={{ flex: 1 }} />
             </View>
-          </View>
+          </Animated.View>
         </KeyboardAvoidingView>
-      </View>
+      </Animated.View>
     </Modal>
   );
 }

@@ -1,8 +1,5 @@
-import { useState } from "react";
-import {
-  View, Text, TouchableOpacity, ScrollView, Switch,
-  ActivityIndicator, Alert, Share, Linking,
-} from "react-native";
+import { useState, type ReactNode } from "react";
+import { View, Text, ScrollView, Switch, ActivityIndicator, Alert, Share } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   ArrowLeft, Bell, Shield, Database, Download, Trash2,
@@ -11,6 +8,8 @@ import {
 import { useNavigation } from "@react-navigation/native";
 import api from "@/lib/api";
 import { useAuthStore } from "@/store/authStore";
+import AnimatedPressable from "@/components/ui/AnimatedPressable";
+import { colors, fonts, radius, spacing, type } from "@/constants/theme";
 
 type Tab = "notifications" | "privacy" | "advanced";
 
@@ -20,6 +19,26 @@ interface SettingsState {
   assignmentReminders: boolean;
   allowMessaging: boolean;
   profileVisible: boolean;
+}
+
+function ToggleRow({ label, desc, value, onToggle, last }: { label: string; desc: string; value: boolean; onToggle: () => void; last?: boolean }) {
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: spacing.lg, paddingVertical: 13, borderBottomWidth: last ? 0 : 1, borderBottomColor: colors.border }}>
+      <View style={{ flex: 1, paddingRight: spacing.md }}>
+        <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 13.5, color: colors.ink }}>{label}</Text>
+        <Text style={{ ...type.caption, color: colors.inkMuted, marginTop: 1 }}>{desc}</Text>
+      </View>
+      <Switch value={value} onValueChange={onToggle} trackColor={{ false: colors.border, true: colors.indigo }} thumbColor={colors.white} />
+    </View>
+  );
+}
+
+function Card({ children }: { children: ReactNode }) {
+  return (
+    <View style={{ backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, overflow: "hidden" }}>
+      {children}
+    </View>
+  );
 }
 
 export default function SettingsScreen() {
@@ -36,10 +55,7 @@ export default function SettingsScreen() {
     profileVisible: true,
   });
   const [downloading, setDownloading] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-  // These preferences are local-only, matching web's current behavior
-  // (no backend persistence exists for them yet).
   const handleToggle = (key: keyof SettingsState) => {
     setSettings((prev) => ({ ...prev, [key]: !prev[key] }));
   };
@@ -51,32 +67,18 @@ export default function SettingsScreen() {
       const { data: userData } = await api.get(`/api/user/profile/${currentUser.id}`);
       const exportData = {
         personalInformation: {
-          name: userData.name,
-          email: userData.email,
-          phone: userData.phone,
-          location: userData.location,
-          dateOfBirth: userData.dateOfBirth,
-          bio: userData.bio,
+          name: userData.name, email: userData.email, phone: userData.phone,
+          location: userData.location, dateOfBirth: userData.dateOfBirth, bio: userData.bio,
         },
         professionalInformation: {
-          role: userData.role,
-          qualification: userData.qualification,
-          experience: userData.experience,
-          subjects: userData.subjects,
-          specialization: userData.specialization,
-          teachingStyle: userData.teachingStyle,
+          role: userData.role, qualification: userData.qualification, experience: userData.experience,
+          subjects: userData.subjects, specialization: userData.specialization, teachingStyle: userData.teachingStyle,
         },
         socialProfiles: {
-          website: userData.website,
-          linkedin: userData.linkedin,
-          twitter: userData.twitter,
-          instagram: userData.instagram,
+          website: userData.website, linkedin: userData.linkedin, twitter: userData.twitter, instagram: userData.instagram,
         },
       };
-      await Share.share({
-        title: "My Intense Learners Data",
-        message: JSON.stringify(exportData, null, 2),
-      });
+      await Share.share({ title: "My Intense Learners Data", message: JSON.stringify(exportData, null, 2) });
     } catch (err: any) {
       Alert.alert("Error", "Failed to fetch your data. Please try again.");
     } finally {
@@ -106,65 +108,54 @@ export default function SettingsScreen() {
   ];
 
   return (
-    <SafeAreaView className="flex-1 bg-background">
-      <View className="flex-row items-center gap-3 px-5 pt-2 pb-3 border-b border-border">
-        <TouchableOpacity onPress={() => navigation.goBack()} className="w-9 h-9 bg-secondary rounded-lg items-center justify-center">
-          <ArrowLeft size={18} color="#374151" />
-        </TouchableOpacity>
-        <Text className="font-bold text-foreground text-base">Settings</Text>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.paper }} edges={["top"]}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 20, paddingTop: 8, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+        <AnimatedPressable
+          pressScale={0.9}
+          onPress={() => navigation.goBack()}
+          style={{ width: 36, height: 36, borderRadius: radius.sm, backgroundColor: colors.surfaceMuted, alignItems: "center", justifyContent: "center" }}
+        >
+          <ArrowLeft size={18} color={colors.ink} />
+        </AnimatedPressable>
+        <Text style={{ ...type.h3, fontSize: 16, color: colors.ink }}>Settings</Text>
       </View>
 
-      <View className="flex-row border-b border-border px-2">
-        {tabs.map((t) => (
-          <TouchableOpacity
-            key={t.id}
-            onPress={() => setTab(t.id)}
-            className="flex-1 items-center py-3 flex-row justify-center gap-1.5"
-            style={{ borderBottomWidth: 2, borderBottomColor: tab === t.id ? "#6366f1" : "transparent" }}
-          >
-            <t.icon size={14} color={tab === t.id ? "#6366f1" : "#9ca3af"} />
-            <Text className="text-xs font-bold" style={{ color: tab === t.id ? "#6366f1" : "#9ca3af" }}>{t.label}</Text>
-          </TouchableOpacity>
-        ))}
+      <View style={{ flexDirection: "row", paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+        {tabs.map((t) => {
+          const active = tab === t.id;
+          return (
+            <AnimatedPressable
+              key={t.id}
+              pressScale={0.96}
+              onPress={() => setTab(t.id)}
+              style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 13, borderBottomWidth: 2, borderBottomColor: active ? colors.indigo : "transparent" }}
+            >
+              <t.icon size={13} color={active ? colors.indigo : colors.inkFaint} />
+              <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 12, color: active ? colors.indigo : colors.inkFaint }}>{t.label}</Text>
+            </AnimatedPressable>
+          );
+        })}
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 20 }}>
+      <ScrollView contentContainerStyle={{ padding: spacing.lg }} showsVerticalScrollIndicator={false}>
         {tab === "notifications" && (
-          <View className="gap-3">
-            {[
-              { key: "pushNotifications" as const, label: "Push Notifications", desc: "Get notified on your device" },
-              { key: "emailNotifications" as const, label: "Email Notifications", desc: "Receive updates via email" },
-              { key: "assignmentReminders" as const, label: "Assignment Reminders", desc: "Reminders before due dates" },
-            ].map(({ key, label, desc }) => (
-              <View key={key} className="flex-row items-center justify-between bg-card border border-border rounded-xl p-3.5">
-                <View className="flex-1 pr-3">
-                  <Text className="font-semibold text-sm text-foreground">{label}</Text>
-                  <Text className="text-xs text-muted-foreground">{desc}</Text>
-                </View>
-                <Switch value={settings[key]} onValueChange={() => handleToggle(key)} trackColor={{ true: "#6366f1" }} />
-              </View>
-            ))}
-          </View>
+          <Card>
+            <ToggleRow label="Push Notifications" desc="Get notified on your device" value={settings.pushNotifications} onToggle={() => handleToggle("pushNotifications")} />
+            <ToggleRow label="Email Notifications" desc="Receive updates via email" value={settings.emailNotifications} onToggle={() => handleToggle("emailNotifications")} />
+            <ToggleRow label="Assignment Reminders" desc="Reminders before due dates" value={settings.assignmentReminders} onToggle={() => handleToggle("assignmentReminders")} last />
+          </Card>
         )}
 
         {tab === "privacy" && (
-          <View className="gap-3">
-            {[
-              { key: "allowMessaging" as const, label: "Direct Messaging", desc: "Allow others to message you" },
-              { key: "profileVisible" as const, label: "Profile Visibility", desc: "Show your profile to others" },
-            ].map(({ key, label, desc }) => (
-              <View key={key} className="flex-row items-center justify-between bg-card border border-border rounded-xl p-3.5">
-                <View className="flex-1 pr-3">
-                  <Text className="font-semibold text-sm text-foreground">{label}</Text>
-                  <Text className="text-xs text-muted-foreground">{desc}</Text>
-                </View>
-                <Switch value={settings[key]} onValueChange={() => handleToggle(key)} trackColor={{ true: "#6366f1" }} />
-              </View>
-            ))}
+          <View>
+            <Card>
+              <ToggleRow label="Direct Messaging" desc="Allow others to message you" value={settings.allowMessaging} onToggle={() => handleToggle("allowMessaging")} />
+              <ToggleRow label="Profile Visibility" desc="Show your profile to others" value={settings.profileVisible} onToggle={() => handleToggle("profileVisible")} last />
+            </Card>
 
-            <View className="flex-row gap-2.5 bg-blue-50 border-2 border-blue-200 rounded-xl p-3.5 mt-2">
-              <Info size={16} color="#2563eb" style={{ marginTop: 2 }} />
-              <Text className="text-xs text-blue-800 flex-1">
+            <View style={{ flexDirection: "row", gap: 10, backgroundColor: colors.indigoTint, borderRadius: radius.md, padding: spacing.md, marginTop: spacing.md }}>
+              <Info size={16} color={colors.indigo} style={{ marginTop: 2 }} />
+              <Text style={{ ...type.caption, color: colors.indigoDark, flex: 1, lineHeight: 17 }}>
                 Your data is encrypted and secure. We never share it without your consent.
               </Text>
             </View>
@@ -172,52 +163,55 @@ export default function SettingsScreen() {
         )}
 
         {tab === "advanced" && (
-          <View className="gap-4">
-            <TouchableOpacity
+          <View style={{ gap: spacing.md }}>
+            <AnimatedPressable
+              pressScale={0.98}
               onPress={handleDownloadData}
               disabled={downloading}
-              className="flex-row items-center gap-3 bg-card border border-border rounded-xl p-3.5"
+              style={{ flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, padding: spacing.md }}
             >
-              {downloading ? <ActivityIndicator size="small" color="#6366f1" /> : <Download size={18} color="#6366f1" />}
-              <View className="flex-1">
-                <Text className="font-semibold text-sm text-foreground">Download Your Data</Text>
-                <Text className="text-xs text-muted-foreground">Export your profile information</Text>
+              {downloading ? <ActivityIndicator size="small" color={colors.indigo} /> : <Download size={18} color={colors.indigo} />}
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 13.5, color: colors.ink }}>Download Your Data</Text>
+                <Text style={{ ...type.caption, color: colors.inkMuted }}>Export your profile information</Text>
               </View>
-            </TouchableOpacity>
+            </AnimatedPressable>
 
-            <TouchableOpacity
+            <AnimatedPressable
+              pressScale={0.98}
               onPress={handleDeleteAccount}
-              className="flex-row items-center gap-3 bg-red-50 border-2 border-red-200 rounded-xl p-3.5"
+              style={{ flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: colors.coralTint, borderRadius: radius.lg, borderWidth: 1, borderColor: "rgba(193,68,58,0.25)", padding: spacing.md }}
             >
-              <Trash2 size={18} color="#dc2626" />
-              <View className="flex-1">
-                <Text className="font-semibold text-sm text-red-700">Delete Account</Text>
-                <Text className="text-xs text-red-600">Permanently delete your account and data</Text>
+              <Trash2 size={18} color={colors.coral} />
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 13.5, color: colors.coral }}>Delete Account</Text>
+                <Text style={{ fontFamily: fonts.body, fontSize: 11.5, color: colors.coral }}>Permanently delete your account and data</Text>
               </View>
-            </TouchableOpacity>
+            </AnimatedPressable>
 
-            <View className="bg-secondary rounded-xl p-3.5">
-              <View className="flex-row items-start gap-2.5">
-                <HelpCircle size={18} color="#6b7280" style={{ marginTop: 1 }} />
-                <View className="flex-1">
-                  <Text className="font-semibold text-sm text-foreground mb-1">Need Help?</Text>
-                  <Text className="text-xs text-muted-foreground mb-2">Contact support for assistance.</Text>
-                  <TouchableOpacity onPress={() => (navigation as any).getParent()?.navigate("Contact")}>
-                    <Text className="text-indigo-600 text-xs font-semibold">Contact Support →</Text>
-                  </TouchableOpacity>
+            <View style={{ backgroundColor: colors.surfaceMuted, borderRadius: radius.lg, padding: spacing.md }}>
+              <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 10 }}>
+                <HelpCircle size={18} color={colors.inkMuted} style={{ marginTop: 1 }} />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 13.5, color: colors.ink, marginBottom: 3 }}>Need Help?</Text>
+                  <Text style={{ ...type.caption, color: colors.inkMuted, marginBottom: spacing.sm }}>Contact support for assistance.</Text>
+                  <AnimatedPressable pressScale={0.95} onPress={() => (navigation as any).getParent()?.navigate("Contact")}>
+                    <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 12, color: colors.indigo }}>Contact Support →</Text>
+                  </AnimatedPressable>
                 </View>
               </View>
             </View>
           </View>
         )}
 
-        <TouchableOpacity
+        <AnimatedPressable
+          pressScale={0.97}
           onPress={handleLogout}
-          className="flex-row items-center justify-center gap-2 bg-red-50 border-2 border-red-200 rounded-xl py-3 mt-6"
+          style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: colors.coralTint, borderRadius: radius.md, paddingVertical: 13, marginTop: spacing.xl }}
         >
-          <LogOut size={16} color="#dc2626" />
-          <Text className="text-red-600 font-semibold text-sm">Log Out</Text>
-        </TouchableOpacity>
+          <LogOut size={16} color={colors.coral} />
+          <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 13.5, color: colors.coral }}>Log Out</Text>
+        </AnimatedPressable>
       </ScrollView>
     </SafeAreaView>
   );

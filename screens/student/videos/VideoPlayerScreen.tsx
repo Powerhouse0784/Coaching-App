@@ -1,13 +1,16 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { View, Text, TouchableOpacity,  ScrollView, Dimensions } from "react-native";
+import { View, Text, ScrollView, Dimensions } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ArrowLeft } from "lucide-react-native";
+import Animated, { FadeIn } from "react-native-reanimated";
+import { ArrowLeft, Eye, Clock, PlayCircle } from "lucide-react-native";
 import YoutubePlayer from "react-native-youtube-iframe";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RouteProp } from "@react-navigation/native";
 import type { VideosStackParamList } from "@/navigation/VideosStackNavigator";
 import api from "@/lib/api";
+import AnimatedPressable from "@/components/ui/AnimatedPressable";
+import { colors, fonts, radius, spacing, type } from "@/constants/theme";
 
 type Nav = NativeStackNavigationProp<VideosStackParamList, "Player">;
 type Rt = RouteProp<VideosStackParamList, "Player">;
@@ -92,12 +95,18 @@ export default function VideoPlayerScreen() {
   );
 
   return (
-    <SafeAreaView className="flex-1 bg-black">
-      <View className="flex-row items-center gap-3 px-4 py-3">
-        <TouchableOpacity onPress={() => navigation.goBack()} className="w-9 h-9 items-center justify-center">
-          <ArrowLeft size={20} color="#fff" />
-        </TouchableOpacity>
-        <Text className="text-white text-xs flex-1" numberOfLines={1}>{folderName}</Text>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.black }} edges={["top"]}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 12 }}>
+        <AnimatedPressable
+          pressScale={0.9}
+          onPress={() => navigation.goBack()}
+          style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: "rgba(255,255,255,0.12)", alignItems: "center", justifyContent: "center" }}
+        >
+          <ArrowLeft size={18} color={colors.white} />
+        </AnimatedPressable>
+        <Text style={{ color: "rgba(255,255,255,0.75)", fontFamily: fonts.bodyMedium, fontSize: 12.5, flex: 1 }} numberOfLines={1}>
+          {folderName}
+        </Text>
       </View>
 
       <YoutubePlayer
@@ -110,17 +119,35 @@ export default function VideoPlayerScreen() {
         webViewProps={{ androidLayerType: "hardware" }}
       />
 
-      <ScrollView className="flex-1 bg-background rounded-t-3xl mt-2" contentContainerStyle={{ padding: 20 }}>
-        <Text className="text-lg font-bold text-foreground mb-2">{video.title}</Text>
-        <View className="flex-row items-center gap-3 mb-4">
-          <Text className="text-xs text-muted-foreground">{video.duration}</Text>
-          <Text className="text-xs text-muted-foreground">·</Text>
-          <Text className="text-xs text-muted-foreground">{video.views} views</Text>
-        </View>
-        {video.description ? (
-          <Text className="text-sm text-muted-foreground leading-relaxed">{video.description}</Text>
-        ) : null}
-      </ScrollView>
+      <Animated.View entering={FadeIn.duration(300)} style={{ flex: 1, backgroundColor: colors.paper, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, marginTop: 6 }}>
+        <ScrollView contentContainerStyle={{ padding: spacing.xl }} showsVerticalScrollIndicator={false}>
+          {video.watched && (
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start", backgroundColor: colors.mintTint, borderRadius: radius.pill, paddingHorizontal: 10, paddingVertical: 5, marginBottom: spacing.md }}>
+              <PlayCircle size={12} color={colors.mint} />
+              <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 11, color: colors.mint }}>Watched</Text>
+            </View>
+          )}
+
+          <Text style={{ ...type.h3, fontSize: 18, color: colors.ink, marginBottom: spacing.sm }}>{video.title}</Text>
+
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 14, marginBottom: spacing.lg }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+              <Clock size={13} color={colors.inkFaint} />
+              <Text style={{ ...type.caption, color: colors.inkMuted }}>{video.duration}</Text>
+            </View>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+              <Eye size={13} color={colors.inkFaint} />
+              <Text style={{ ...type.caption, color: colors.inkMuted }}>{video.views} views</Text>
+            </View>
+          </View>
+
+          {video.description ? (
+            <Text style={{ ...type.body, fontSize: 14, color: colors.inkMuted, lineHeight: 21 }}>
+              {video.description}
+            </Text>
+          ) : null}
+        </ScrollView>
+      </Animated.View>
     </SafeAreaView>
   );
 }

@@ -1,12 +1,16 @@
 import { useState } from "react";
 import {
-  View, Text, TextInput, TouchableOpacity, Modal,
-  ActivityIndicator, Alert, KeyboardAvoidingView, Platform,
+  View, Text, TextInput, Modal, ActivityIndicator, Alert,
+  KeyboardAvoidingView, Platform, Pressable,
 } from "react-native";
+import Animated, { FadeIn, SlideInDown } from "react-native-reanimated";
 import { X, Upload, FileText, Trash2, Send, Sparkles } from "lucide-react-native";
 import api from "@/lib/api";
 import { pickAndUploadPDF, type UploadedFile } from "@/lib/upload";
 import type { StudentAssignment, AssignmentSubmission } from "@/types";
+import Button from "@/components/ui/Button";
+import AnimatedPressable from "@/components/ui/AnimatedPressable";
+import { colors, fonts, radius, spacing, type } from "@/constants/theme";
 
 interface Props {
   visible: boolean;
@@ -64,103 +68,122 @@ export default function SubmitAssignmentModal({ visible, assignment, onClose, on
   };
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View className="flex-1 bg-black/60 justify-end">
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <Animated.View entering={FadeIn.duration(200)} style={{ flex: 1, backgroundColor: "rgba(23,25,35,0.6)", justifyContent: "flex-end" }}>
+        <Pressable style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }} onPress={onClose} />
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined}>
-          <View className="bg-background rounded-t-3xl max-h-[85%]">
-            {/* Header */}
-            <View className="flex-row items-center justify-between p-5 border-b border-border">
-              <View className="flex-1 pr-3">
-                <Text className="text-lg font-bold text-foreground">Submit Assignment</Text>
-                <Text className="text-xs text-muted-foreground" numberOfLines={1}>{assignment.title}</Text>
-              </View>
-              <TouchableOpacity onPress={onClose}>
-                <X size={22} color="#9ca3af" />
-              </TouchableOpacity>
+          <Animated.View
+            entering={SlideInDown.duration(280).springify().damping(18)}
+            style={{
+              backgroundColor: colors.paper,
+              borderTopLeftRadius: radius.xl,
+              borderTopRightRadius: radius.xl,
+              maxHeight: "85%",
+            }}
+          >
+            {/* Grabber */}
+            <View style={{ alignItems: "center", paddingTop: 10 }}>
+              <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: colors.border }} />
             </View>
 
-            <View className="p-5">
-              <Text className="text-sm font-semibold text-foreground mb-3">Upload Your Solution (PDF) *</Text>
+            {/* Header */}
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+              <View style={{ flex: 1, paddingRight: spacing.md }}>
+                <Text style={{ ...type.h3, fontSize: 17, color: colors.ink }}>Submit Assignment</Text>
+                <Text style={{ ...type.caption, color: colors.inkMuted, marginTop: 2 }} numberOfLines={1}>
+                  {assignment.title}
+                </Text>
+              </View>
+              <AnimatedPressable pressScale={0.9} onPress={onClose} style={{ width: 32, height: 32, borderRadius: radius.sm, backgroundColor: colors.surfaceMuted, alignItems: "center", justifyContent: "center" }}>
+                <X size={18} color={colors.inkMuted} />
+              </AnimatedPressable>
+            </View>
+
+            <View style={{ padding: spacing.lg }}>
+              <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 13.5, color: colors.ink, marginBottom: spacing.md }}>
+                Upload Your Solution (PDF) *
+              </Text>
 
               {uploadedFile ? (
-                <View className="border-2 border-green-300 bg-green-50 rounded-xl p-3 flex-row items-center justify-between">
-                  <View className="flex-row items-center gap-2.5 flex-1">
-                    <View className="w-10 h-10 bg-green-100 rounded-lg items-center justify-center">
-                      <FileText size={20} color="#16a34a" />
+                <View style={{ backgroundColor: colors.mintTint, borderRadius: radius.md, padding: spacing.md, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1 }}>
+                    <View style={{ width: 38, height: 38, borderRadius: radius.sm, backgroundColor: "rgba(47,143,91,0.16)", alignItems: "center", justifyContent: "center" }}>
+                      <FileText size={19} color={colors.mint} />
                     </View>
-                    <View className="flex-1">
-                      <Text className="font-semibold text-sm text-foreground" numberOfLines={1}>{uploadedFile.name}</Text>
-                      <Text className="text-xs text-muted-foreground">{uploadedFile.size}</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 13.5, color: colors.ink }} numberOfLines={1}>{uploadedFile.name}</Text>
+                      <Text style={{ ...type.caption, color: colors.inkMuted }}>{uploadedFile.size}</Text>
                     </View>
                   </View>
-                  <TouchableOpacity onPress={() => setUploadedFile(null)} className="p-2">
-                    <Trash2 size={18} color="#dc2626" />
-                  </TouchableOpacity>
+                  <AnimatedPressable pressScale={0.9} onPress={() => setUploadedFile(null)} style={{ padding: 8 }}>
+                    <Trash2 size={18} color={colors.coral} />
+                  </AnimatedPressable>
                 </View>
               ) : (
-                <TouchableOpacity
+                <AnimatedPressable
                   onPress={handlePickFile}
                   disabled={uploading}
-                  className="border-2 border-dashed border-border rounded-xl p-8 items-center"
+                  style={{
+                    borderWidth: 1.5, borderStyle: "dashed", borderColor: colors.border,
+                    borderRadius: radius.md, paddingVertical: 32, alignItems: "center",
+                  }}
                 >
                   {uploading ? (
                     <>
-                      <ActivityIndicator color="#6366f1" />
-                      <Text className="text-indigo-500 font-medium text-sm mt-2">Uploading…</Text>
+                      <ActivityIndicator color={colors.indigo} />
+                      <Text style={{ color: colors.indigo, fontFamily: fonts.bodyMedium, fontSize: 13.5, marginTop: 8 }}>Uploading…</Text>
                     </>
                   ) : (
                     <>
-                      <Upload size={32} color="#9ca3af" />
-                      <Text className="text-muted-foreground text-sm mt-2">Tap to upload your solution PDF</Text>
-                      <Text className="text-muted-foreground text-xs mt-1">PDF only (Max 16MB)</Text>
+                      <Upload size={30} color={colors.inkFaint} />
+                      <Text style={{ ...type.body, fontSize: 13.5, color: colors.inkMuted, marginTop: 8 }}>Tap to upload your solution PDF</Text>
+                      <Text style={{ ...type.caption, color: colors.inkFaint, marginTop: 2 }}>PDF only (Max 16MB)</Text>
                     </>
                   )}
-                </TouchableOpacity>
+                </AnimatedPressable>
               )}
 
-              <Text className="text-sm font-semibold text-foreground mt-5 mb-2">Remarks (Optional)</Text>
+              <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 13.5, color: colors.ink, marginTop: spacing.lg, marginBottom: spacing.sm }}>
+                Remarks (Optional)
+              </Text>
               <TextInput
                 value={remarks}
                 onChangeText={setRemarks}
                 placeholder="Add any notes about your submission…"
+                placeholderTextColor={colors.inkFaint}
                 multiline
                 numberOfLines={3}
-                className="border-2 border-border rounded-xl px-3 py-2.5 text-foreground text-sm"
-                style={{ textAlignVertical: "top", minHeight: 80 }}
+                style={{
+                  borderWidth: 1.5, borderColor: colors.border, borderRadius: radius.md,
+                  paddingHorizontal: spacing.md, paddingVertical: 10, color: colors.ink,
+                  fontFamily: fonts.body, fontSize: 14, textAlignVertical: "top", minHeight: 80,
+                  backgroundColor: colors.surface,
+                }}
               />
 
-              <View className="bg-indigo-50 border-2 border-indigo-200 rounded-xl p-3 mt-4 flex-row gap-2.5">
-                <Sparkles size={16} color="#6366f1" style={{ marginTop: 2 }} />
-                <Text className="text-xs text-indigo-700 flex-1">
+              <View style={{ flexDirection: "row", gap: 10, backgroundColor: colors.indigoTint, borderRadius: radius.md, padding: spacing.md, marginTop: spacing.lg }}>
+                <Sparkles size={16} color={colors.indigo} style={{ marginTop: 2 }} />
+                <Text style={{ ...type.caption, color: colors.indigoDark, flex: 1, lineHeight: 17 }}>
                   Make sure your PDF is clear and readable. You can discuss solutions with classmates in the comments!
                 </Text>
               </View>
             </View>
 
             {/* Footer */}
-            <View className="flex-row gap-3 p-5 border-t border-border">
-              <TouchableOpacity onPress={onClose} className="flex-1 border-2 border-border rounded-xl py-3 items-center">
-                <Text className="font-semibold text-foreground text-sm">Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
+            <View style={{ flexDirection: "row", gap: spacing.sm, padding: spacing.lg, borderTopWidth: 1, borderTopColor: colors.border }}>
+              <Button label="Cancel" variant="ghost" onPress={onClose} style={{ flex: 1 }} />
+              <Button
+                label="Submit"
+                icon={Send}
                 onPress={handleSubmit}
                 disabled={!uploadedFile || submitting || uploading}
-                className="flex-1 bg-indigo-600 rounded-xl py-3 items-center flex-row justify-center gap-2"
-                style={{ opacity: !uploadedFile || submitting || uploading ? 0.5 : 1 }}
-              >
-                {submitting ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <>
-                    <Send size={16} color="#fff" />
-                    <Text className="text-white font-semibold text-sm">Submit</Text>
-                  </>
-                )}
-              </TouchableOpacity>
+                loading={submitting}
+                style={{ flex: 1 }}
+              />
             </View>
-          </View>
+          </Animated.View>
         </KeyboardAvoidingView>
-      </View>
+      </Animated.View>
     </Modal>
   );
 }

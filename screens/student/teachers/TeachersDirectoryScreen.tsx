@@ -1,23 +1,24 @@
 import { useState, useEffect, useCallback } from "react";
 import {
-  View, Text, TextInput, TouchableOpacity, FlatList,
-  ActivityIndicator, Image, Modal, Linking, ScrollView,
+  View, Text, FlatList, Image, Modal, Linking, ScrollView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import FontAwesome from 'react-native-vector-icons/FontAwesome';
+import FontAwesome from "react-native-vector-icons/FontAwesome";
+import Animated, { FadeInDown, SlideInDown } from "react-native-reanimated";
 import {
   ArrowLeft, Search, Users, Activity, TrendingUp, Trophy,
-  Mail, MapPin, Calendar, X, Briefcase, Globe, Camera,
+  Mail, MapPin, X, Briefcase, Globe,
 } from "lucide-react-native";
 import { useNavigation } from "@react-navigation/native";
 import api from "@/lib/api";
 import type { DirectoryUser } from "@/types";
-
-function getInitials(name: string) {
-  if (!name) return "?";
-  const parts = name.split(" ");
-  return parts.length >= 2 ? `${parts[0][0]}${parts[1][0]}`.toUpperCase() : name.substring(0, 2).toUpperCase();
-}
+import Card from "@/components/ui/Card";
+import Badge from "@/components/ui/Badge";
+import Input from "@/components/ui/Input";
+import Avatar from "@/components/ui/Avatar";
+import AnimatedPressable from "@/components/ui/AnimatedPressable";
+import Skeleton from "@/components/ui/Skeleton";
+import { colors, fonts, radius, spacing, type } from "@/constants/theme";
 
 function formatDate(d: string | null) {
   if (!d) return "N/A";
@@ -68,223 +69,181 @@ export default function TeachersDirectoryScreen() {
   });
 
   const stats = [
-    { icon: Users, value: teachers.length, label: "Total Teachers", color: "#3b82f6" },
-    { icon: Activity, value: Math.floor(teachers.length * 0.8), label: "Active Today", color: "#22c55e" },
-    { icon: TrendingUp, value: Math.floor(teachers.length * 0.15), label: "This Month", color: "#a855f7" },
-    { icon: Trophy, value: teachers.length, label: "All Time", color: "#f59e0b" },
+    { icon: Users, value: teachers.length, label: "Total Teachers", accent: colors.indigo },
+    { icon: Activity, value: Math.floor(teachers.length * 0.8), label: "Active Today", accent: colors.mint },
+    { icon: TrendingUp, value: Math.floor(teachers.length * 0.15), label: "This Month", accent: colors.gold },
+    { icon: Trophy, value: teachers.length, label: "All Time", accent: colors.coral },
   ];
 
-  if (loading) {
-    return (
-      <SafeAreaView className="flex-1 bg-background items-center justify-center">
-        <ActivityIndicator size="large" color="#6366f1" />
-        <Text className="text-muted-foreground mt-3">Loading teachers…</Text>
-      </SafeAreaView>
-    );
-  }
+  const listHeader = (
+    <View style={{ paddingHorizontal: 20, paddingTop: 8 }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 20 }}>
+        <AnimatedPressable pressScale={0.9} onPress={() => navigation.goBack()} style={{ width: 38, height: 38, borderRadius: radius.sm, backgroundColor: colors.surfaceMuted, alignItems: "center", justifyContent: "center" }}>
+          <ArrowLeft size={18} color={colors.ink} />
+        </AnimatedPressable>
+        <View>
+          <Text style={{ ...type.h3, color: colors.ink }}>Teacher Directory</Text>
+          <Text style={{ fontFamily: fonts.body, fontSize: 12, color: colors.inkMuted }}>View all registered teachers</Text>
+        </View>
+      </View>
+
+      {loading ? (
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginBottom: 20 }}>
+          {[0, 1, 2, 3].map((i) => (
+            <View key={i} style={{ minWidth: "45%", flex: 1 }}>
+              <Card padding="sm"><Skeleton height={44} /></Card>
+            </View>
+          ))}
+        </View>
+      ) : (
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginBottom: 20 }}>
+          {stats.map((s, idx) => (
+            <View key={idx} style={{ minWidth: "45%", flex: 1 }}>
+              <Card padding="sm">
+                <View style={{ width: 34, height: 34, borderRadius: radius.sm, backgroundColor: `${s.accent}1F`, alignItems: "center", justifyContent: "center", marginBottom: spacing.sm }}>
+                  <s.icon size={16} color={s.accent} />
+                </View>
+                <Text style={{ fontFamily: fonts.displayBold, fontSize: 18, color: colors.ink }}>{s.value}</Text>
+                <Text style={{ fontFamily: fonts.body, fontSize: 11.5, color: colors.inkMuted }}>{s.label}</Text>
+              </Card>
+            </View>
+          ))}
+        </View>
+      )}
+
+      <Input
+        value={searchQuery}
+        onChangeText={setSearchQuery}
+        placeholder="Search by name, email, location, subject…"
+        leftIcon={<Search size={17} color={colors.inkFaint} />}
+      />
+      <View style={{ height: spacing.sm }} />
+    </View>
+  );
 
   return (
-    <SafeAreaView className="flex-1 bg-background">
-      <FlatList
-        data={filtered}
-        keyExtractor={(item) => item.id}
-        ListHeaderComponent={
-          <View className="px-5 pt-2">
-            <View className="flex-row items-center gap-3 mb-4">
-              <TouchableOpacity onPress={() => navigation.goBack()} className="w-9 h-9 bg-secondary rounded-lg items-center justify-center">
-                <ArrowLeft size={18} color="#374151" />
-              </TouchableOpacity>
-              <View>
-                <Text className="text-lg font-bold text-foreground">Teacher Directory</Text>
-                <Text className="text-xs text-muted-foreground">View all registered teachers</Text>
-              </View>
-            </View>
-
-            <View className="flex-row flex-wrap gap-3 mb-4">
-              {stats.map((s, idx) => (
-                <View key={idx} className="bg-card rounded-2xl p-3 border border-border" style={{ minWidth: "45%" }}>
-                  <View className="w-9 h-9 rounded-xl items-center justify-center mb-2" style={{ backgroundColor: `${s.color}20` }}>
-                    <s.icon size={16} color={s.color} />
-                  </View>
-                  <Text className="text-lg font-bold text-foreground">{s.value}</Text>
-                  <Text className="text-xs text-muted-foreground">{s.label}</Text>
-                </View>
-              ))}
-            </View>
-
-            <View className="flex-row items-center border-2 border-border rounded-xl px-3 mb-4 bg-card">
-              <Search size={16} color="#9ca3af" />
-              <TextInput
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                placeholder="Search by name, email, location, subject…"
-                className="flex-1 py-2.5 px-2 text-foreground text-sm"
-              />
-            </View>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.paper }} edges={["top"]}>
+      {loading ? (
+        <View>
+          {listHeader}
+          <View style={{ paddingHorizontal: 20, gap: 12 }}>
+            {[0, 1, 2].map((i) => (
+              <Card key={i} padding="md"><Skeleton height={72} /></Card>
+            ))}
           </View>
-        }
-        renderItem={({ item: teacher }) => (
-          <TouchableOpacity
-            onPress={() => setSelectedTeacher(teacher)}
-            activeOpacity={0.85}
-            className="mx-5 mb-3 bg-card rounded-2xl border-2 border-border p-4"
-          >
-            <View className="flex-row gap-3">
-              <View className="w-14 h-14 rounded-xl bg-purple-500 items-center justify-center overflow-hidden">
-                {teacher.avatar ? (
-                  <Image source={{ uri: teacher.avatar }} className="w-full h-full" />
-                ) : (
-                  <Text className="text-white font-bold text-lg">{getInitials(teacher.name)}</Text>
-                )}
-              </View>
-              <View className="flex-1">
-                <View className="flex-row items-center flex-wrap gap-1.5 mb-1.5">
-                  <Text className="font-bold text-foreground text-sm" numberOfLines={1}>{teacher.name}</Text>
-                  <View className="bg-purple-100 px-2 py-0.5 rounded-full">
-                    <Text className="text-[9px] font-bold text-purple-700">TEACHER</Text>
-                  </View>
-                  {teacher.isActive && (
-                    <View className="bg-green-100 px-2 py-0.5 rounded-full">
-                      <Text className="text-[9px] font-bold text-green-700">Active</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={filtered}
+          keyExtractor={(item) => item.id}
+          ListHeaderComponent={listHeader}
+          renderItem={({ item: teacher, index }) => (
+            <Animated.View entering={FadeInDown.duration(350).delay(Math.min(index, 6) * 50)} style={{ marginHorizontal: 20, marginBottom: 12 }}>
+              <Card onPress={() => setSelectedTeacher(teacher)} padding="md">
+                <View style={{ flexDirection: "row", gap: 12 }}>
+                  <Avatar name={teacher.name ?? "Teacher"} uri={teacher.avatar} size="lg" />
+                  <View style={{ flex: 1 }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 6, marginBottom: 6 }}>
+                      <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 14, color: colors.ink }} numberOfLines={1}>{teacher.name}</Text>
+                      <Badge label="Teacher" tone="brand" />
+                      {teacher.isActive && <Badge label="Active" tone="success" />}
                     </View>
-                  )}
-                </View>
-                {teacher.bio ? <Text className="text-xs text-muted-foreground mb-1.5" numberOfLines={2}>{teacher.bio}</Text> : null}
-                <View className="flex-row flex-wrap gap-x-3 gap-y-1">
-                  {teacher.email && (
-                    <View className="flex-row items-center gap-1">
-                      <Mail size={11} color="#6366f1" />
-                      <Text className="text-[11px] text-muted-foreground" numberOfLines={1}>{teacher.email}</Text>
+                    {teacher.bio ? (
+                      <Text style={{ fontFamily: fonts.body, fontSize: 12, color: colors.inkMuted, marginBottom: 6 }} numberOfLines={2}>{teacher.bio}</Text>
+                    ) : null}
+                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+                      {teacher.email && (
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                          <Mail size={11} color={colors.indigo} />
+                          <Text style={{ fontFamily: fonts.body, fontSize: 11, color: colors.inkMuted }} numberOfLines={1}>{teacher.email}</Text>
+                        </View>
+                      )}
+                      {teacher.location && (
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                          <MapPin size={11} color={colors.coral} />
+                          <Text style={{ fontFamily: fonts.body, fontSize: 11, color: colors.inkMuted }}>{teacher.location}</Text>
+                        </View>
+                      )}
                     </View>
-                  )}
-                  {teacher.location && (
-                    <View className="flex-row items-center gap-1">
-                      <MapPin size={11} color="#ef4444" />
-                      <Text className="text-[11px] text-muted-foreground">{teacher.location}</Text>
-                    </View>
-                  )}
-                </View>
-                {(teacher.qualification || teacher.experience || teacher.subjects) && (
-                  <View className="flex-row flex-wrap gap-1.5 mt-2">
-                    {teacher.qualification && (
-                      <View className="bg-secondary px-2 py-1 rounded-lg">
-                        <Text className="text-[10px] text-muted-foreground">{teacher.qualification}</Text>
-                      </View>
-                    )}
-                    {teacher.experience && (
-                      <View className="bg-secondary px-2 py-1 rounded-lg">
-                        <Text className="text-[10px] text-muted-foreground">{teacher.experience}</Text>
+                    {(teacher.qualification || teacher.experience) && (
+                      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
+                        {teacher.qualification && (
+                          <View style={{ backgroundColor: colors.surfaceMuted, paddingHorizontal: 8, paddingVertical: 4, borderRadius: radius.sm }}>
+                            <Text style={{ fontFamily: fonts.body, fontSize: 10, color: colors.inkMuted }}>{teacher.qualification}</Text>
+                          </View>
+                        )}
+                        {teacher.experience && (
+                          <View style={{ backgroundColor: colors.surfaceMuted, paddingHorizontal: 8, paddingVertical: 4, borderRadius: radius.sm }}>
+                            <Text style={{ fontFamily: fonts.body, fontSize: 10, color: colors.inkMuted }}>{teacher.experience}</Text>
+                          </View>
+                        )}
                       </View>
                     )}
                   </View>
-                )}
-              </View>
+                </View>
+              </Card>
+            </Animated.View>
+          )}
+          contentContainerStyle={{ paddingBottom: 24 }}
+          ListEmptyComponent={
+            <View style={{ alignItems: "center", paddingVertical: 64, paddingHorizontal: 20 }}>
+              <Users size={44} color={colors.inkFaint} />
+              <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 15, color: colors.ink, marginTop: 12 }}>No Teachers Found</Text>
+              <Text style={{ fontFamily: fonts.body, fontSize: 13, color: colors.inkMuted, textAlign: "center", marginTop: 4 }}>
+                {searchQuery ? "Try adjusting your search" : "No teachers have registered yet"}
+              </Text>
             </View>
-          </TouchableOpacity>
-        )}
-        contentContainerStyle={{ paddingBottom: 24 }}
-        ListEmptyComponent={
-          <View className="items-center py-16 px-5">
-            <Users size={48} color="#9ca3af" />
-            <Text className="text-foreground font-bold text-base mt-3">No Teachers Found</Text>
-            <Text className="text-muted-foreground text-sm text-center mt-1">
-              {searchQuery ? "Try adjusting your search" : "No teachers have registered yet"}
-            </Text>
-          </View>
-        }
-      />
+          }
+        />
+      )}
 
-      {/* Teacher detail modal */}
-      <Modal visible={!!selectedTeacher} transparent animationType="slide" onRequestClose={() => setSelectedTeacher(null)}>
-        <View className="flex-1 bg-black/70 justify-end">
-          <View className="bg-background rounded-t-3xl" style={{ maxHeight: "85%" }}>
+      {/* Teacher detail sheet */}
+      <Modal visible={!!selectedTeacher} transparent animationType="fade" onRequestClose={() => setSelectedTeacher(null)}>
+        <View style={{ flex: 1, backgroundColor: "rgba(15,17,25,0.6)", justifyContent: "flex-end" }}>
+          <Animated.View entering={SlideInDown.duration(280)} style={{ backgroundColor: colors.paper, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, maxHeight: "85%" }}>
             {selectedTeacher && (
               <>
-                <View className="flex-row items-center gap-3 p-5 border-b border-border">
-                  <View className="w-14 h-14 rounded-xl bg-purple-500 items-center justify-center overflow-hidden">
-                    {selectedTeacher.avatar ? (
-                      <Image source={{ uri: selectedTeacher.avatar }} className="w-full h-full" />
-                    ) : (
-                      <Text className="text-white font-bold text-lg">{getInitials(selectedTeacher.name)}</Text>
-                    )}
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 12, padding: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+                  <Avatar name={selectedTeacher.name ?? "Teacher"} uri={selectedTeacher.avatar} size="lg" />
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 15, color: colors.ink }} numberOfLines={1}>{selectedTeacher.name}</Text>
+                    <Text style={{ fontFamily: fonts.body, fontSize: 12, color: colors.inkMuted }} numberOfLines={1}>{selectedTeacher.email}</Text>
                   </View>
-                  <View className="flex-1">
-                    <Text className="font-bold text-foreground text-base" numberOfLines={1}>{selectedTeacher.name}</Text>
-                    <Text className="text-xs text-muted-foreground" numberOfLines={1}>{selectedTeacher.email}</Text>
-                  </View>
-                  <TouchableOpacity onPress={() => setSelectedTeacher(null)}>
-                    <X size={22} color="#9ca3af" />
-                  </TouchableOpacity>
+                  <AnimatedPressable pressScale={0.9} onPress={() => setSelectedTeacher(null)} style={{ width: 32, height: 32, borderRadius: radius.sm, backgroundColor: colors.surfaceMuted, alignItems: "center", justifyContent: "center" }}>
+                    <X size={17} color={colors.inkMuted} />
+                  </AnimatedPressable>
                 </View>
 
-                <ScrollView contentContainerStyle={{ padding: 20 }}>
-                  <View className="flex-row items-center gap-2 mb-4">
-                    <Users size={16} color="#6366f1" />
-                    <Text className="font-bold text-foreground text-sm">Personal Information</Text>
-                  </View>
-                  <View className="gap-2 mb-4">
-                    {selectedTeacher.location && (
-                      <View>
-                        <Text className="text-xs text-muted-foreground">Location</Text>
-                        <Text className="text-sm font-semibold text-foreground">{selectedTeacher.location}</Text>
-                      </View>
-                    )}
+                <ScrollView contentContainerStyle={{ padding: spacing.lg }} showsVerticalScrollIndicator={false}>
+                  <SectionHeading icon={Users} label="Personal Information" />
+                  <View style={{ gap: 10, marginBottom: spacing.lg }}>
+                    {selectedTeacher.location && <InfoRow label="Location" value={selectedTeacher.location} />}
                     {selectedTeacher.dateOfBirth && (
-                      <View>
-                        <Text className="text-xs text-muted-foreground">Date of Birth</Text>
-                        <Text className="text-sm font-semibold text-foreground">
-                          {formatDate(selectedTeacher.dateOfBirth)} (Age: {calculateAge(selectedTeacher.dateOfBirth)})
-                        </Text>
-                      </View>
+                      <InfoRow label="Date of Birth" value={`${formatDate(selectedTeacher.dateOfBirth)} (Age: ${calculateAge(selectedTeacher.dateOfBirth)})`} />
                     )}
-                    <View>
-                      <Text className="text-xs text-muted-foreground">Member Since</Text>
-                      <Text className="text-sm font-semibold text-foreground">{formatDate(selectedTeacher.createdAt)}</Text>
-                    </View>
+                    <InfoRow label="Member Since" value={formatDate(selectedTeacher.createdAt)} />
                   </View>
+
                   {selectedTeacher.bio && (
-                    <View className="mb-4">
-                      <Text className="text-xs text-muted-foreground mb-1">Bio</Text>
-                      <Text className="text-sm text-foreground">{selectedTeacher.bio}</Text>
+                    <View style={{ marginBottom: spacing.lg }}>
+                      <Text style={{ fontFamily: fonts.body, fontSize: 11.5, color: colors.inkFaint, marginBottom: 3 }}>Bio</Text>
+                      <Text style={{ fontFamily: fonts.body, fontSize: 13, color: colors.ink, lineHeight: 19 }}>{selectedTeacher.bio}</Text>
                     </View>
                   )}
 
                   {(selectedTeacher.qualification || selectedTeacher.experience || selectedTeacher.subjects || selectedTeacher.specialization) && (
                     <>
-                      <View className="flex-row items-center gap-2 mb-3 mt-2">
-                        <Briefcase size={16} color="#6366f1" />
-                        <Text className="font-bold text-foreground text-sm">Professional Information</Text>
-                      </View>
-                      <View className="gap-2 mb-4">
-                        {selectedTeacher.qualification && (
-                          <View>
-                            <Text className="text-xs text-muted-foreground">Qualification</Text>
-                            <Text className="text-sm font-semibold text-foreground">{selectedTeacher.qualification}</Text>
-                          </View>
-                        )}
-                        {selectedTeacher.experience && (
-                          <View>
-                            <Text className="text-xs text-muted-foreground">Experience</Text>
-                            <Text className="text-sm font-semibold text-foreground">{selectedTeacher.experience}</Text>
-                          </View>
-                        )}
-                        {selectedTeacher.subjects && (
-                          <View>
-                            <Text className="text-xs text-muted-foreground">Subjects</Text>
-                            <Text className="text-sm font-semibold text-foreground">{selectedTeacher.subjects}</Text>
-                          </View>
-                        )}
-                        {selectedTeacher.specialization && (
-                          <View>
-                            <Text className="text-xs text-muted-foreground">Specialization</Text>
-                            <Text className="text-sm font-semibold text-foreground">{selectedTeacher.specialization}</Text>
-                          </View>
-                        )}
+                      <SectionHeading icon={Briefcase} label="Professional Information" />
+                      <View style={{ gap: 10, marginBottom: spacing.lg }}>
+                        {selectedTeacher.qualification && <InfoRow label="Qualification" value={selectedTeacher.qualification} />}
+                        {selectedTeacher.experience && <InfoRow label="Experience" value={selectedTeacher.experience} />}
+                        {selectedTeacher.subjects && <InfoRow label="Subjects" value={selectedTeacher.subjects} />}
+                        {selectedTeacher.specialization && <InfoRow label="Specialization" value={selectedTeacher.specialization} />}
                       </View>
                       {selectedTeacher.teachingStyle && (
-                        <View className="mb-4">
-                          <Text className="text-xs text-muted-foreground mb-1">Teaching Style</Text>
-                          <Text className="text-sm text-foreground">{selectedTeacher.teachingStyle}</Text>
+                        <View style={{ marginBottom: spacing.lg }}>
+                          <Text style={{ fontFamily: fonts.body, fontSize: 11.5, color: colors.inkFaint, marginBottom: 3 }}>Teaching Style</Text>
+                          <Text style={{ fontFamily: fonts.body, fontSize: 13, color: colors.ink, lineHeight: 19 }}>{selectedTeacher.teachingStyle}</Text>
                         </View>
                       )}
                     </>
@@ -292,46 +251,19 @@ export default function TeachersDirectoryScreen() {
 
                   {(selectedTeacher.website || selectedTeacher.linkedin || selectedTeacher.twitter || selectedTeacher.instagram) && (
                     <>
-                      <View className="flex-row items-center gap-2 mb-3">
-                        <Globe size={16} color="#6366f1" />
-                        <Text className="font-bold text-foreground text-sm">Social Profiles</Text>
-                      </View>
-                      <View className="flex-row flex-wrap gap-2">
+                      <SectionHeading icon={Globe} label="Social Profiles" />
+                      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
                         {selectedTeacher.website && (
-                          <TouchableOpacity
-                            onPress={() => Linking.openURL(selectedTeacher.website!)}
-                            className="flex-row items-center gap-1.5 bg-secondary px-3 py-2 rounded-lg"
-                          >
-                            <Globe size={13} color="#374151" />
-                            <Text className="text-xs font-semibold text-foreground">Website</Text>
-                          </TouchableOpacity>
+                          <SocialPill icon={<Globe size={14} color={colors.ink} />} label="Website" onPress={() => Linking.openURL(selectedTeacher.website!)} />
                         )}
                         {selectedTeacher.linkedin && (
-                          <TouchableOpacity
-                            onPress={() => Linking.openURL(selectedTeacher.linkedin!)}
-                            className="flex-row items-center gap-1.5 bg-blue-100 px-3 py-2 rounded-lg"
-                          >
-                            <FontAwesome name="linkedin" size={18} color="#9ca3af" />
-                            <Text className="text-xs font-semibold text-blue-700">LinkedIn</Text>
-                          </TouchableOpacity>
+                          <SocialPill icon={<FontAwesome name="linkedin" size={15} color="#0A66C2" />} label="LinkedIn" onPress={() => Linking.openURL(selectedTeacher.linkedin!)} />
                         )}
                         {selectedTeacher.twitter && (
-                          <TouchableOpacity
-                            onPress={() => Linking.openURL(selectedTeacher.twitter!)}
-                            className="flex-row items-center gap-1.5 bg-blue-100 px-3 py-2 rounded-lg"
-                          >
-                            <FontAwesome name="twitter" size={18} color="#9ca3af" />
-                            <Text className="text-xs font-semibold text-blue-600">Twitter</Text>
-                          </TouchableOpacity>
+                          <SocialPill icon={<FontAwesome name="twitter" size={15} color="#1D9BF0" />} label="Twitter" onPress={() => Linking.openURL(selectedTeacher.twitter!)} />
                         )}
                         {selectedTeacher.instagram && (
-                          <TouchableOpacity
-                            onPress={() => Linking.openURL(selectedTeacher.instagram!)}
-                            className="flex-row items-center gap-1.5 bg-pink-100 px-3 py-2 rounded-lg"
-                          >
-                            <FontAwesome name="instagram" size={18} color="#9ca3af" />
-                            <Text className="text-xs font-semibold text-pink-700">Instagram</Text>
-                          </TouchableOpacity>
+                          <SocialPill icon={<FontAwesome name="instagram" size={15} color="#D6249F" />} label="Instagram" onPress={() => Linking.openURL(selectedTeacher.instagram!)} />
                         )}
                       </View>
                     </>
@@ -339,9 +271,36 @@ export default function TeachersDirectoryScreen() {
                 </ScrollView>
               </>
             )}
-          </View>
+          </Animated.View>
         </View>
       </Modal>
     </SafeAreaView>
+  );
+}
+
+function SectionHeading({ icon: Icon, label }: { icon: any; label: string }) {
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: spacing.md }}>
+      <Icon size={15} color={colors.indigo} />
+      <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 13, color: colors.ink }}>{label}</Text>
+    </View>
+  );
+}
+
+function InfoRow({ label, value }: { label: string; value: string }) {
+  return (
+    <View>
+      <Text style={{ fontFamily: fonts.body, fontSize: 11.5, color: colors.inkFaint }}>{label}</Text>
+      <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 13, color: colors.ink, marginTop: 1 }}>{value}</Text>
+    </View>
+  );
+}
+
+function SocialPill({ icon, label, onPress }: { icon: React.ReactNode; label: string; onPress: () => void }) {
+  return (
+    <AnimatedPressable pressScale={0.94} onPress={onPress} style={{ flexDirection: "row", alignItems: "center", gap: 7, backgroundColor: colors.surfaceMuted, paddingHorizontal: 12, paddingVertical: 9, borderRadius: radius.md }}>
+      {icon}
+      <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 12, color: colors.ink }}>{label}</Text>
+    </AnimatedPressable>
   );
 }
